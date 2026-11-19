@@ -649,23 +649,8 @@ def render_video(
             if is_still and template not in PRO_TEMPLATES
             else ""
         )
+        # Không vẽ focus/click ở tọa độ cố định: chỉ clip Agent thật mới có thao tác.
         graphic_filter = ""
-        if template in PRO_TEMPLATES and asset is not None:
-            accent = TEMPLATE_PALETTES[template][1]
-            focus_x = round(width * 0.18)
-            focus_y = round(height * (0.37 if height > width else 0.31))
-            focus_w = round(width * 0.64)
-            focus_h = round(height * (0.19 if height > width else 0.30))
-            cursor_x = round(width * 0.72)
-            cursor_y = round(height * (0.50 if height > width else 0.46))
-            graphic_filter = (
-                f",drawbox=x={focus_x}:y={focus_y}:w={focus_w}:h={focus_h}:"
-                f"color=0x{accent}@0.88:t=5:enable='between(t,0.75,2.75)'"
-                f",drawbox=x={cursor_x-18}:y={cursor_y-18}:w=36:h=36:"
-                f"color=0x{accent}@0.34:t=4:enable='between(t,1.15,2.35)'"
-                f",drawbox=x={cursor_x-7}:y={cursor_y-7}:w=14:h=14:"
-                f"color=0x{accent}@0.95:t=fill:enable='between(t,1.25,2.25)'"
-            )
         visual_chain = (
             f"[0:v]{visual_filter}"
             if template not in PRO_TEMPLATES or asset is None

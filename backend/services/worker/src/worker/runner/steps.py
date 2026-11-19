@@ -183,21 +183,34 @@ class HomepageCaptureStep:
                 # Không đưa giá trị input/avatar phổ biến vào ảnh demo sau đăng nhập.
                 await page.add_style_tag(
                     content=(
-                        "input, textarea, [data-private], [class*='avatar'], [class*='email']"
+                        "input:not([type=search]), textarea, [data-private], [class*='avatar'], [class*='email']"
                         "{filter:blur(10px)!important}"
                     )
                 )
-                # Cursor giả chỉ để người xem nhận ra vùng Browser Agent đang quan sát. Agent
-                # không nhập dữ liệu, không bấm submit/mua hàng và không thực hiện hành động ghi.
-                await page.evaluate(
-                    """() => {
+                # Con trỏ trong clip đi theo các tọa độ mouse thật; không mô phỏng click giả.
+                cursor_script = """() => {
                       const cursor = document.createElement('div');
                       cursor.id = '__p1_agent_cursor';
-                      cursor.style.cssText = 'position:fixed;z-index:2147483647;width:24px;height:24px;'
-                        + 'border:3px solid #7c3aed;border-radius:50%;box-shadow:0 0 0 7px rgba(124,58,237,.22);'
-                        + 'pointer-events:none;left:50%;top:50%;transition:left .35s ease,top .35s ease';
+                      cursor.style.cssText = 'position:fixed;z-index:2147483647;width:32px;height:40px;'
+                        + 'pointer-events:none;left:20px;top:20px;transition:left .08s linear,top .08s linear;'
+                        + 'filter:drop-shadow(0 3px 3px #0009);'
+                        + 'background: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2732%27 height=%2740%27 viewBox=%270 0 32 40%27%3E%3Cpath d=%27M3 2v30l8-8 5 13 6-3-5-12h12z%27 fill=%27white%27 stroke=%27%23111827%27 stroke-width=%272.5%27/%3E%3C/svg%3E") center / contain no-repeat';
                       document.documentElement.appendChild(cursor);
+                      window.addEventListener('mousemove', e => {
+                        cursor.style.left = e.clientX + 'px'; cursor.style.top = e.clientY + 'px';
+                      });
+                      window.addEventListener('mousedown', () => {
+                        cursor.style.filter = 'drop-shadow(0 0 12px #a78bfa)';
+                        cursor.style.transform = 'scale(.82)';
+                      });
+                      window.addEventListener('mouseup', () => {
+                        cursor.style.filter = 'drop-shadow(0 3px 3px #0009)';
+                        cursor.style.transform = 'scale(1)';
+                      });
                     }"""
+                await page.evaluate(cursor_script)
+                await context.add_init_script(
+                    f"document.addEventListener('DOMContentLoaded', {cursor_script});"
                 )
                 height = int(await page.evaluate("Math.max(document.body.scrollHeight, 720)"))
                 positions = [
@@ -272,7 +285,7 @@ class HomepageCaptureStep:
                             continue
                         await page.add_style_tag(
                             content=(
-                                "input, textarea, [data-private], [class*='avatar'], [class*='email']"
+                                "input:not([type=search]), textarea, [data-private], [class*='avatar'], [class*='email']"
                                 "{filter:blur(10px)!important}"
                             )
                         )
@@ -297,17 +310,30 @@ class HomepageCaptureStep:
                 # nội bộ an toàn. Không đụng form, logout, thanh toán hay liên kết ngoài domain.
                 await page.evaluate("window.scrollTo({top: 0, behavior: 'smooth'})")
                 await page.wait_for_timeout(900)
-                await page.evaluate(
-                    """() => { const c=document.querySelector('#__p1_agent_cursor');
-                    if(c){c.style.left='18%';c.style.top='28%';} }"""
-                )
+                await page.mouse.move(230, 200, steps=18)
                 await page.wait_for_timeout(700)
                 await page.mouse.wheel(0, max(480, min(1100, height // 3)))
-                await page.evaluate(
-                    """() => { const c=document.querySelector('#__p1_agent_cursor');
-                    if(c){c.style.left='72%';c.style.top='58%';} }"""
-                )
+                await page.mouse.move(920, 420, steps=24)
                 await page.wait_for_timeout(1100)
+                # Chỉ gõ vào ô tìm kiếm công khai; không gửi form hay chạm dữ liệu tài khoản.
+                search = page.locator('input[type="search"]:visible').first
+                if storage_state is None and await search.count() > 0:
+                    try:
+                        query = re.sub(r"\s+", " ", (await page.title()).split("|")[0]).strip()[:32]
+                        if query:
+                            await search.scroll_into_view_if_needed()
+                            box = await search.bounding_box()
+                            if box:
+                                await page.mouse.move(
+                                    box["x"] + min(100, box["width"] / 2),
+                                    box["y"] + box["height"] / 2,
+                                    steps=20,
+                                )
+                                await search.click()
+                                await page.keyboard.type(query, delay=85)
+                                await page.wait_for_timeout(900)
+                    except Exception:
+                        pass
                 base_host = urlparse(page.url).netloc
                 candidates = page.locator("a[href]:visible")
                 for index in range(min(await candidates.count(), 40)):
@@ -328,21 +354,17 @@ class HomepageCaptureStep:
                     )
                     if blocked or href.startswith(("#", "javascript:", "mailto:", "tel:")):
                         continue
+                    await link.scroll_into_view_if_needed()
                     box = await link.bounding_box()
                     if not box:
                         continue
-                    await link.scroll_into_view_if_needed()
                     x = min(1240, max(10, box["x"] + box["width"] / 2))
                     y = min(680, max(10, box["y"] + box["height"] / 2))
-                    await page.evaluate(
-                        "([x,y]) => { const c=document.querySelector('#__p1_agent_cursor');"
-                        "if(c){c.style.left=x+'px';c.style.top=y+'px';} }",
-                        [x, y],
-                    )
+                    await page.mouse.move(x, y, steps=24)
                     await link.hover()
                     await page.wait_for_timeout(800)
                     try:
-                        await link.click(timeout=3_000)
+                        await page.mouse.click(x, y, delay=180)
                         await page.wait_for_load_state("domcontentloaded", timeout=8_000)
                         await page.wait_for_timeout(1_100)
                     except Exception:
