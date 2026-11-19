@@ -163,8 +163,6 @@ class HomepageCaptureStep:
                 context = await browser.new_context(
                     viewport={"width": 1280, "height": 720},
                     storage_state=str(storage_state) if storage_state is not None else None,
-                    record_video_dir=str(video_dir),
-                    record_video_size={"width": 1280, "height": 720},
                 )
                 page = await context.new_page()
                 response = await page.goto(url, wait_until="domcontentloaded", timeout=45_000)
@@ -247,7 +245,7 @@ class HomepageCaptureStep:
                 )
                 priority_tokens = (
                     "feature", "product", "demo", "tool", "pricing", "dashboard",
-                    "lesson", "course", "about", "tính năng", "sản phẩm", "bảng giá",
+                    "lesson", "course", "tính năng", "sản phẩm", "bảng giá",
                 )
                 navigation: list[tuple[int, str, str]] = []
                 visited_urls = {page.url.rstrip("/")}
@@ -304,7 +302,27 @@ class HomepageCaptureStep:
                         captured.append((f"tab-{nav_index}-{slug}", target))
                     except Exception:
                         continue
-                await page.goto(url, wait_until="domcontentloaded", timeout=20_000)
+                # Giai đoạn lập bản đồ/chụp ảnh không nằm trong video demo.
+                await context.close()
+                context = await browser.new_context(
+                    viewport={"width": 1280, "height": 720},
+                    storage_state=str(storage_state) if storage_state is not None else None,
+                    record_video_dir=str(video_dir),
+                    record_video_size={"width": 1280, "height": 720},
+                )
+                await context.add_init_script(
+                    f"document.addEventListener('DOMContentLoaded', {cursor_script});"
+                )
+                page = await context.new_page()
+                response = await page.goto(url, wait_until="domcontentloaded", timeout=20_000)
+                if response is not None and response.status in {401, 403}:
+                    raise RuntimeError(f"trang yêu cầu đăng nhập (HTTP {response.status})")
+                await page.add_style_tag(
+                    content=(
+                        "input:not([type=search]), textarea, [data-private], "
+                        "[class*='avatar'], [class*='email']{filter:blur(10px)!important}"
+                    )
+                )
                 await page.wait_for_timeout(700)
                 # Quay một demo đọc-only: cuộn qua nội dung, hover và mở tối đa một liên kết
                 # nội bộ an toàn. Không đụng form, logout, thanh toán hay liên kết ngoài domain.
@@ -334,26 +352,17 @@ class HomepageCaptureStep:
                                 await page.wait_for_timeout(900)
                     except Exception:
                         pass
-                base_host = urlparse(page.url).netloc
-                candidates = page.locator("a[href]:visible")
-                for index in range(min(await candidates.count(), 40)):
-                    link = candidates.nth(index)
-                    href = await link.get_attribute("href") or ""
-                    label = ((await link.inner_text()) or "").strip().lower()
-                    absolute = urlparse(await link.evaluate("el => el.href"))
-                    blocked = (
-                        absolute.netloc != base_host
-                        or absolute.scheme not in {"http", "https"}
-                        or any(
-                            token in f"{absolute.path} {label}"
-                            for token in (
-                                "logout", "sign out", "delete", "remove", "checkout",
-                                "payment", "purchase", "buy", "đăng xuất", "xóa", "mua",
-                            )
-                        )
+                for score, target_url, _label in navigation:
+                    if score <= 0:
+                        break
+                    link = page.locator("a[href]:visible")
+                    matches = await link.evaluate_all(
+                        "(els, target) => els.filter(el => el.href === target).map(el => els.indexOf(el))",
+                        target_url,
                     )
-                    if blocked or href.startswith(("#", "javascript:", "mailto:", "tel:")):
+                    if not matches:
                         continue
+                    link = link.nth(matches[0])
                     await link.scroll_into_view_if_needed()
                     box = await link.bounding_box()
                     if not box:
@@ -364,7 +373,7 @@ class HomepageCaptureStep:
                     await link.hover()
                     await page.wait_for_timeout(800)
                     try:
-                        await page.mouse.click(x, y, delay=180)
+                        await link.click(timeout=3_000, delay=180)
                         await page.wait_for_load_state("domcontentloaded", timeout=8_000)
                         await page.wait_for_timeout(1_100)
                     except Exception:
