@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Allow: /private/public-doc
+Disallow: /private/
+Disallow: /*.pdf$
+Crawl-delay: 2
+
+User-agent: aireviewcontentfactory
+Disallow: /secret
+
+Sitemap: https://example.com/sitemap.xml

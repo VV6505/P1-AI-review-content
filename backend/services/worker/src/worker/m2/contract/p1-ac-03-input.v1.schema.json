@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://specs.ai-review.internal/m2/p1-ac-03-input.v1.schema.json",
+  "title": "P1-AC-03 Script Generation Input v1 (Draft)",
+  "description": "Bản nháp input cho M2. approved_pkb phải được kiểm riêng bằng PKB schema hiện hành của M1. Không phụ thuộc Campaign/Affiliate.",
+  "type": "object",
+  "required": ["schema_version", "product_id", "knowledge_version", "approved_pkb", "permitted_assets"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "p1-ac-03-input.v1-draft" },
+    "product_id": { "type": "string", "format": "uuid" },
+    "knowledge_version": { "type": "integer", "minimum": 1 },
+    "approved_pkb": {
+      "type": "object",
+      "required": ["status", "schema_version", "data", "sources"],
+      "properties": {
+        "status": { "type": "string", "const": "approved" },
+        "schema_version": { "type": "string", "enum": ["0.2", "0.3"], "description": "Phiên bản PKB đã được người dùng xác nhận; PKB v0.3 đã có trên dev qua PR #68. Không tự nâng hoặc chuyển đổi phiên bản." },
+        "data": { "type": "object", "description": "schema_version bên trong data phải khớp trường schema_version ở wrapper. Chuyển dữ liệu giữa các phiên bản cần người dùng xác nhận; không tự nâng phiên bản." },
+        "sources": { "type": "array", "items": { "type": "object" }, "description": "Validate từng source theo PKB sources schema hiện hành." }
+      },
+      "additionalProperties": false
+    },
+    "permitted_assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["asset_id", "product_id", "kind", "allowed_use", "rights_basis"],
+        "properties": {
+          "asset_id": { "type": "string", "minLength": 1, "description": "ID asset đã lưu do BE cung cấp; model chỉ được trả ID này, không tạo URL/path." },
+          "product_id": { "type": "string", "format": "uuid", "description": "BE kiểm asset thuộc đúng Product; không lấy giá trị do LLM sinh làm căn cứ." },
+          "kind": { "type": "string", "enum": ["screen_recording", "screenshot", "product_asset", "logo"] },
+        "source_id": { "type": ["string", "null"], "pattern": "^src_[0-9]{2,}$", "description": "Nguồn gốc tư liệu nếu có; không tự tạo nguồn crawl cho asset do owner cung cấp." },
+          "allowed_use": { "type": "array", "items": { "type": "string", "enum": ["internal_demo", "public_video"] }, "minItems": 1 },
+          "rights_basis": { "type": "string", "minLength": 1, "description": "Căn cứ xác nhận quyền sử dụng; không được suy ra quyền chỉ từ việc có URL hoặc ghi nguồn." }
+        },
+        "additionalProperties": false
+      }
+    },
+    "content_context": {
+      "description": "Tùy chọn, độc lập với Campaign/Affiliate. Nếu thiếu, dùng các mặc định được nêu trong prompt; mọi claim sản phẩm vẫn phải truy về PKB.",
+      "type": "object",
+      "properties": {
+        "video_description": { "type": "string", "minLength": 1, "maxLength": 2000, "pattern": "\\S", "description": "Mô tả gốc về mong muốn video do người dùng nhập (tùy chọn). Chỉ định hướng nội dung; không phải fact sản phẩm, không cấp quyền asset, không ghi đè audience/intent/CTA đã xác nhận. Thông tin sản phẩm mới hoặc yêu cầu mâu thuẫn phải được làm rõ/xác nhận trước khi dùng." },
+        "platform": { "type": "string", "enum": ["tiktok", "reels", "shorts"] },
+        "intent": { "type": "string", "enum": ["awareness", "education", "consideration", "conversion"] },
+        "audience": { "type": ["string", "null"], "maxLength": 500 },
+        "approved_claims": { "type": "array", "items": { "type": "string" } },
+        "forbidden_claims": { "type": "array", "items": { "type": "string" } },
+        "cta": {
+          "type": "object",
+          "required": ["text"],
+          "properties": {
+            "text": { "type": "string", "minLength": 1, "maxLength": 240 },
+            "destination": { "type": ["string", "null"], "maxLength": 500 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

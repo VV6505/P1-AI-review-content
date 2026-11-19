@@ -1,0 +1,36 @@
+name: CI web
+
+on:
+  pull_request:
+    paths-ignore:
+      - "**.md"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/CODEOWNERS"
+  push:
+    branches: [main, staging, dev]
+    paths-ignore:
+      - "**.md"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/CODEOWNERS"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-typecheck:
+    name: eslint + tsc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6 # version đọc từ "packageManager" trong package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      # Sinh type cho route (LayoutProps, PageProps...) trước khi type-check
+      - run: pnpm exec next typegen
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm test

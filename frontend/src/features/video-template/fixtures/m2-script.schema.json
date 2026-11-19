@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://specs.ai-review.internal/m2/p1-ac-03-script-vi.v1.schema.json",
+  "title": "P1-AC-03 Vietnamese Script v1 (Draft)",
+  "description": "Bản nháp output M2 tiếng Việt, chờ thống nhất với BE/TTS/renderer. target_duration_s là mục tiêu MP4 40–45 giây; estimated_duration_s là ước tính trước TTS, không phải duration đo được.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "product_id",
+    "pkb_schema_version",
+    "knowledge_version",
+    "language",
+    "platform",
+    "audience",
+    "context_defaults_applied",
+    "intent",
+    "target_duration_s",
+    "concept",
+    "hook",
+    "scenes",
+    "cta"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "p1-ac-03.v1-draft" },
+    "product_id": { "type": "string", "format": "uuid" },
+    "pkb_schema_version": { "type": "string", "enum": ["0.2", "0.3"], "description": "Phiên bản schema PKB đã được người dùng xác nhận cho knowledge_version này; không tự nâng phiên bản." },
+    "knowledge_version": { "type": "integer", "minimum": 1 },
+    "estimated_duration_s": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 600,
+      "description": "Ước tính do worker bổ sung sau khi LLM sinh lời thoại: tổng số âm tiết trong narration_segments chia cho tốc độ cấu hình. Mặc định khởi điểm cho tiếng Việt là 3.75 âm tiết/giây (trong khoảng đo thử 3.6–3.9); phải ghi rõ đây là ước tính và hiệu chỉnh theo TTS thực tế. Không dùng để nghiệm thu thời lượng video. Có thể vắng mặt trong JSON thô từ LLM."
+    },
+    "language": { "type": "string", "const": "vi" },
+    "platform": { "type": "string", "enum": ["tiktok", "reels", "shorts"] },
+    "audience": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "context_defaults_applied": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "enum": ["platform", "intent", "audience", "cta"] }
+    },
+    "intent": {
+      "type": "string",
+      "enum": ["awareness", "education", "consideration", "conversion"]
+    },
+    "target_duration_s": { "type": "integer", "minimum": 40, "maximum": 45, "description": "Mục tiêu thời lượng MP4 hoàn chỉnh; phải xác nhận bằng timeline/audio thực tế sau khi render, không suy ra từ text hoặc fixture." },
+    "concept": {
+      "type": "object",
+      "required": ["title", "angle"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "angle": {
+          "type": "string",
+          "enum": [
+            "problem", "demo", "comparison", "tutorial", "before_after",
+            "mistake", "listicle", "reaction", "challenge", "hidden_feature",
+            "cost_saving", "workflow"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "hook": {
+      "type": "object",
+      "required": ["text", "type"],
+      "properties": {
+        "text": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "type": {
+          "type": "string",
+          "enum": ["curiosity", "pain", "result", "comparison", "controversy", "challenge", "demo", "mistake"]
+        },
+        "fact_refs": { "$ref": "#/$defs/fact_refs" }
+      },
+      "additionalProperties": false
+    },
+    "scenes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "required": ["scene_id", "role", "narration_segments", "subtitle_text", "visual_plan", "claims"],
+        "properties": {
+          "scene_id": { "type": "string", "pattern": "^s[0-9]{2}$" },
+          "role": { "type": "string", "enum": ["hook", "problem", "demo", "result", "proof", "cta"] },
+          "narration_segments": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["segment_id", "text"],
+              "properties": {
+                "segment_id": { "type": "string", "pattern": "^s[0-9]{2}-u[0-9]{2}$" },
+                "text": { "type": "string", "minLength": 1, "maxLength": 500 }
+              },
+              "additionalProperties": false
+            },
+            "description": "Mỗi phần tử là một câu gửi TTS độc lập. ID ổn định dùng ghép audio trả về."
+          },
+          "subtitle_text": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "visual_plan": {
+            "type": "object",
+            "required": ["kind", "purpose", "source_type"],
+            "properties": {
+              "kind": { "type": "string", "enum": ["screen_recording", "screenshot", "product_asset", "ai_generated_image", "text_card", "logo"] },
+              "source_type": { "type": "string", "enum": ["existing_asset", "ai_generation", "generated_text"] },
+              "asset_id": { "type": "string", "minLength": 1, "description": "ID asset đã lưu; BE xác thực thuộc đúng Product và allowlist, sau đó tự resolve đường dẫn. Không nhận URL/path do LLM tạo." },
+              "generation_request": { "type": "string", "minLength": 1, "maxLength": 500, "description": "Mô tả yêu cầu sinh ảnh riêng; không phải asset đã tồn tại và chưa cấp quyền sử dụng." },
+              "text": { "type": "string", "minLength": 1, "maxLength": 500, "description": "Nội dung renderer tự trình bày cho text card; không phải asset." },
+              "purpose": { "type": "string", "minLength": 1, "maxLength": 240 }
+            },
+            "oneOf": [
+              { "properties": { "kind": { "not": { "const": "text_card" } }, "source_type": { "const": "existing_asset" } }, "required": ["asset_id"], "not": { "anyOf": [{ "required": ["generation_request"] }, { "required": ["text"] }] } },
+              { "properties": { "kind": { "not": { "const": "text_card" } }, "source_type": { "const": "ai_generation" } }, "required": ["generation_request"], "not": { "anyOf": [{ "required": ["asset_id"] }, { "required": ["text"] }] } },
+              { "properties": { "kind": { "const": "text_card" }, "source_type": { "const": "generated_text" } }, "required": ["text"], "not": { "anyOf": [{ "required": ["asset_id"] }, { "required": ["generation_request"] }] } }
+            ],
+            "additionalProperties": false
+          },
+          "claims": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["text", "type", "fact_refs", "segment_ids"],
+              "properties": {
+                "text": { "type": "string", "minLength": 1 },
+                "type": { "type": "string", "enum": ["identity", "feature", "pricing", "limitation", "other"] },
+                "fact_refs": { "$ref": "#/$defs/fact_refs" },
+                "segment_ids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^s[0-9]{2}-u[0-9]{2}$" } },
+                "stat_display": {
+                  "type": "object",
+                  "description": "Nội dung dữ liệu cho layout stat; không phải cấu hình trình bày. fact_refs của claim này phải chứng minh value, label và scope; FE không tự tách số từ text.",
+                  "required": ["value", "label", "unit", "scope"],
+                  "properties": {
+                    "value": { "type": "string", "minLength": 1, "maxLength": 100 },
+                    "label": { "type": "string", "minLength": 1, "maxLength": 120 },
+                    "unit": { "type": ["string", "null"], "maxLength": 40, "description": "Đơn vị hiển thị; null chỉ khi fact không có đơn vị." },
+                    "scope": { "type": "string", "minLength": 1, "maxLength": 160, "description": "Phạm vi/điều kiện áp dụng của giá trị, phải có căn cứ trong fact_refs." }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "allOf": [
+                {
+                  "if": { "required": ["stat_display"] },
+                  "then": { "properties": { "fact_refs": { "minItems": 1 } } }
+                }
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "cta": {
+      "type": "object",
+      "required": ["text", "destination"],
+      "properties": {
+        "text": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "destination": { "type": ["string", "null"], "maxLength": 500 },
+        "fact_refs": { "$ref": "#/$defs/fact_refs", "description": "Bắt buộc khi CTA nêu claim sản phẩm; mọi tham chiếu được validator kiểm như fact_refs trong hook/claim." }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "fact_ref": {
+      "type": "object",
+      "required": ["field_path"],
+      "properties": {
+        "source_id": { "type": "string", "pattern": "^src_[0-9]{2,}$", "description": "Tùy chọn với fact do owner cung cấp; nếu có phải khớp source_id trên fact." },
+        "field_path": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*|\\[[0-9]+\\])*$", "description": "Đường dẫn tới fact trong đúng knowledge_version; cú pháp key.key[index].key." }
+      },
+      "additionalProperties": false
+    },
+    "fact_refs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/fact_ref" }
+    }
+  },
+  "additionalProperties": false
+}

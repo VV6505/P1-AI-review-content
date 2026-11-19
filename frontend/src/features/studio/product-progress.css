@@ -1,0 +1,15 @@
+.product-progress { margin:20px 0 24px; padding:18px; border:1px solid var(--s-line); border-radius:5px; background:var(--s-bg); }
+.product-progress ol { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; list-style:none; padding:0; margin:0 0 16px; }
+.product-progress li { display:flex; align-items:flex-start; gap:9px; min-width:0; font-size:12px; color:var(--s-muted); }
+.product-step-number { width:26px; height:26px; display:grid; place-items:center; flex:none; border:1px solid var(--s-line); border-radius:50%; font-size:11px; background:var(--s-panel); }
+.product-progress li.current { color:var(--s-fg); }
+.product-progress li.current .product-step-number { border-color:var(--s-accent); color:var(--s-accent); }
+.product-progress li.done .product-step-number { border-color:var(--s-positive); color:var(--s-positive); }
+.product-progress small { display:block; margin-top:2px; font-size:10px; color:var(--s-muted); }
+.product-progress > p[role="status"] { padding-top:13px; border-top:1px solid var(--s-line); font-size:12px; }
+.product-progress .field-hint { margin-top:5px; }
+.project-details-tabs button:disabled { cursor:not-allowed; opacity:.45; }
+@media(max-width:480px) {
+  .product-progress { padding:14px; }
+  .product-progress ol { grid-template-columns:1fr; gap:13px; }
+}

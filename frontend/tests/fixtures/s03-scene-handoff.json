@@ -1,0 +1,146 @@
+{
+ "schema_version": "scene-handoff.v0 (trích từ render-plan.v2-spike, PR #88)",
+ "product": "PDFCraft",
+ "written_by": "agent (Claude Code, viết tay theo bộ 9 fact, 20/10). Chưa phải LLM của pipeline M2 (#83).",
+ "fps": 30,
+ "timing_note": "start_s/end_s tính trong cảnh: lead_s + độ dài wav đo thật + gap_s giữa câu. Chưa cộng chuyển cảnh.",
+ "lead_s": 0.1,
+ "gap_s": 0.12,
+ "tail_s": 0.6,
+ "scene_duration_s": 7.9,
+ "facts": {
+  "F4": "Add page numbers to PDF documents. Customize position, format, and starting number.",
+  "V1": "Clip pdfcraft-pagenum.mp4 giây 2–13: mở Page Numbers, chọn vị trí, Apply; hiện \"Applied Page Numbers\" và số \"1\" ở chân trang."
+ },
+ "scene": {
+  "scene_id": "s03",
+  "role": "demo",
+  "layout": "feature_clip",
+  "narration_segments": [
+   {
+    "segment_id": "s03-u01",
+    "text": "Đầu tiên, đánh số trang.",
+    "voice": "media/s05.wav",
+    "fact_refs": [
+     "F4"
+    ],
+    "normalized": "Đầu tiên, đánh số trang.",
+    "duration_s": 1.68,
+    "start_s": 0.1,
+    "end_s": 1.78
+   },
+   {
+    "segment_id": "s03-u02",
+    "text": "Chọn vị trí, bấm áp dụng là có số trang.",
+    "voice": "media/s06.wav",
+    "fact_refs": [
+     "F4",
+     "V1"
+    ],
+    "normalized": "Chọn vị trí, bấm áp dụng là có số trang.",
+    "duration_s": 2.72,
+    "start_s": 1.9,
+    "end_s": 4.62
+   },
+   {
+    "segment_id": "s03-u03",
+    "text": "Bạn còn chỉnh được định dạng và số bắt đầu.",
+    "voice": "media/s07.wav",
+    "fact_refs": [
+     "F4"
+    ],
+    "normalized": "Bạn còn chỉnh được định dạng và số bắt đầu.",
+    "duration_s": 2.56,
+    "start_s": 4.74,
+    "end_s": 7.3
+   }
+  ],
+  "clip": {
+   "parts": [
+    {
+     "src": "media/pdfcraft-pagenum.mp4",
+     "start_s": 1.6,
+     "end_s": 4.0
+    },
+    {
+     "src": "media/pdfcraft-pagenum.mp4",
+     "start_s": 9.4,
+     "end_s": 11.48
+    },
+    {
+     "src": "media/pdfcraft-pagenum.mp4",
+     "start_s": 11.62,
+     "end_s": 13.6
+    }
+   ],
+   "crop": [
+    440,
+    0,
+    1480,
+    1080
+   ],
+   "focus": {
+    "part": 2,
+    "source_t": 11.9,
+    "rect": [
+     1240,
+     600,
+     660,
+     460
+    ]
+   },
+   "clip_refs": [
+    "V1"
+   ]
+  },
+  "props": {
+   "icon": "hash",
+   "eyebrow": {
+    "text": "Công cụ Page Numbers",
+    "fact_refs": [
+     "F4",
+     "V1"
+    ]
+   },
+   "title": {
+    "text": "Thêm số trang vào PDF",
+    "highlight": "số trang",
+    "fact_refs": [
+     "F4"
+    ]
+   },
+   "steps": [
+    {
+     "text": "Chọn vị trí",
+     "icon": "mouse-pointer-click",
+     "fact_refs": [
+      "F4",
+      "V1"
+     ]
+    },
+    {
+     "text": "Bấm Apply",
+     "icon": "check",
+     "fact_refs": [
+      "V1"
+     ]
+    },
+    {
+     "text": "Định dạng, số bắt đầu",
+     "icon": "list-ordered",
+     "fact_refs": [
+      "F4"
+     ]
+    }
+   ],
+   "url": "pdfcraft.devtoolcafe.com",
+   "callout": {
+    "text": "Đã có số trang",
+    "icon": "badge-check",
+    "fact_refs": [
+     "V1"
+    ]
+   }
+  }
+ }
+}

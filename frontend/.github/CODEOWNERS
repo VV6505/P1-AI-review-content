@@ -1,0 +1,22 @@
+# CODEOWNERS — tự động request review từ owner của file bị thay đổi.
+#
+# Đang là PLACEHOLDER: mọi dòng đều comment vì GitHub báo lỗi nếu username không tồn tại.
+# Cách dùng: thay @TODO-... bằng GitHub username thật rồi bỏ dấu "#" ở đầu dòng.
+# Handle dạng @org/team (ví dụ @ai-review/web) chỉ dùng được khi repo nằm trong một GitHub Organization.
+# Dòng ở dưới ghi đè dòng ở trên khi cùng khớp một file.
+#
+# Nhóm: web = FE-1, FE-2 | qa = QA-1, QA-2 | lead = BE (tech lead)
+
+# Mặc định: nhóm web
+# *                         @TODO-fe-1 @TODO-fe-2
+
+# Design system / component shadcn
+# /src/components/ui/       @TODO-fe-2
+
+# Test E2E (nhóm qa), khi thư mục được tạo
+# /e2e/                     @TODO-qa-1 @TODO-qa-2
+
+# Dependency, CI, cấu hình
+# /package.json             @TODO-fe-1 @TODO-lead
+# /pnpm-lock.yaml           @TODO-fe-1 @TODO-lead
+# /.github/                 @TODO-lead

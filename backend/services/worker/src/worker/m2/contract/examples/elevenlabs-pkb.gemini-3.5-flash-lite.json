@@ -1,0 +1,472 @@
+{
+  "data": {
+    "identity": {
+      "name": {
+        "origin": "crawled",
+        "source_id": "src_01",
+        "evidence": "ElevenLabs",
+        "value": "ElevenLabs"
+      },
+      "website": "https://elevenlabs.io",
+      "tagline": {
+        "origin": "crawled",
+        "source_id": "src_01",
+        "evidence": "Bringing technology to life",
+        "value": "Bringing technology to life"
+      },
+      "description": {
+        "origin": "crawled",
+        "source_id": "src_01",
+        "evidence": "Generate ultra-realistic speech, videos, music, and sound effects. Configure, deploy and monitor conversational agents.",
+        "value": "Generate ultra-realistic speech, videos, music, and sound effects. Configure, deploy and monitor conversational agents."
+      },
+      "category": {
+        "origin": "crawled",
+        "source_id": "src_01",
+        "evidence": "AI voice generator",
+        "value": "AI voice generator"
+      },
+      "company": null,
+      "version": null,
+      "models": [
+        {
+          "origin": "crawled",
+          "source_id": "src_01",
+          "evidence": "Eleven v4Meet Eleven v4, our most emotive model yet.",
+          "name": "Eleven v4"
+        },
+        {
+          "origin": "crawled",
+          "source_id": "src_01",
+          "evidence": "Eleven Multilingual v2\nOur most consistent and lifelike Text to Speech model",
+          "name": "Eleven Multilingual v2"
+        },
+        {
+          "origin": "crawled",
+          "source_id": "src_01",
+          "evidence": "Eleven Turbo v2\nOur high-quality, low-latency Text to Speech model",
+          "name": "Eleven Turbo v2"
+        },
+        {
+          "origin": "crawled",
+          "source_id": "src_01",
+          "evidence": "Eleven Flash v2.5\nOur ultra-low latency Text to Speech model",
+          "name": "Eleven Flash v2.5"
+        },
+        {
+          "origin": "crawled",
+          "source_id": "src_01",
+          "evidence": "Scribe v2 Realtime\nThe most accurate real-time transcription model",
+          "name": "Scribe v2 Realtime"
+        }
+      ]
+    },
+    "pricing": {
+      "currency": {
+        "origin": "crawled",
+        "source_id": "src_02",
+        "evidence": "Prices exclude all taxes, levies and duties.",
+        "value": "USD"
+      },
+      "region": "VN",
+      "locale": "en-US",
+      "default_view": "monthly",
+      "other_views": [
+        "yearly"
+      ],
+      "plans": [
+        {
+          "origin": "crawled",
+          "source_id": "src_02",
+          "evidence": "$0per month\nBuild for free",
+          "name": "Free",
+          "currency": "USD",
+          "list_price": 0.0,
+          "promo_price": null,
+          "promo_terms": null,
+          "price_unit": "month",
+          "billing_cycle": "monthly",
+          "price_text": "$0 per month",
+          "limits": [
+            "10k credits per month"
+          ],
+          "audience": "individuals"
+        },
+        {
+          "origin": "crawled",
+          "source_id": "src_02",
+          "evidence": "$6 First month 83% off\n$1per month\nChoose Starter",
+          "name": "Starter",
+          "currency": "USD",
+          "list_price": 6.0,
+          "promo_price": 1.0,
+          "promo_terms": "First month",
+          "price_unit": "month",
+          "billing_cycle": "monthly",
+          "price_text": "$6 First month 83% off $1 per month",
+          "limits": [
+            "30k credits per month"
+          ],
+          "audience": "individuals"
+        },
+        {
+          "origin": "crawled",
+          "source_id": "src_02",
+          "evidence": "$22 First month 50% off\n$11per month\nChoose Creator",
+          "name": "Creator",
+          "currency": "USD",
+          "list_price": 22.0,
+          "promo_price": 11.0,
+          "promo_terms": "First month",
+          "price_unit": "month",
+          "billing_cycle": "monthly",
+          "price_text": "$22 First month 50% off $11 per month",
+          "limits": [
+            "121k credits per month"
+          ],
+          "audience": "individuals"
+        },
+        {
+          "origin": "crawled",
+          "source_id": "src_02",
+          "evidence": "$99per month\nChoose Pro",
+          "name": "Pro",
+          "currency": "USD",
+          "list_price": 99.0,
+          "promo_price": null,
+          "promo_terms": null,
+          "price_unit": "month",
+          "billing_cycle": "monthly",
+          "price_text": "$99 per month",
+          "limits": [
+            "600k credits per month"
+          ],
+          "audience": "individuals"
+        },
+        {
+          "origin": "crawled",
+          "source_id": "src_02",
+          "evidence": "$299per month\nChoose Scale",
+          "name": "Scale",
+          "currency": "USD",
+          "list_price": 299.0,
+          "promo_price": null,
+          "promo_terms": null,
+          "price_unit": "month",
+          "billing_cycle": "monthly",
+          "price_text": "$299 per month",
+          "limits": [
+            "1.8M credits per month",
+            "3 seats"
+          ],
+          "audience": "teams"
+        },
+        {
+          "origin": "crawled",
+          "source_id": "src_02",
+          "evidence": "$990per month\nChoose Business",
+          "name": "Business",
+          "currency": "USD",
+          "list_price": 990.0,
+          "promo_price": null,
+          "promo_terms": null,
+          "price_unit": "month",
+          "billing_cycle": "monthly",
+          "price_text": "$990 per month",
+          "limits": [
+            "6M credits per month",
+            "10 seats"
+          ],
+          "audience": "teams"
+        },
+        {
+          "origin": "crawled",
+          "source_id": "src_02",
+          "evidence": "Enterprise\nCustom pricing\nContact us",
+          "name": "Enterprise",
+          "currency": null,
+          "list_price": null,
+          "promo_price": null,
+          "promo_terms": null,
+          "price_unit": null,
+          "billing_cycle": null,
+          "price_text": "Custom pricing",
+          "limits": [
+            "Custom number of credits and seats"
+          ],
+          "audience": "enterprise"
+        }
+      ],
+      "usage_prices": [
+        {
+          "origin": "crawled",
+          "source_id": "src_03",
+          "evidence": "$0.022 ~~$0.08%%\nPrice per 1K characters",
+          "name": "v4 Text to Speech",
+          "unit": "1K characters",
+          "price": 0.022,
+          "currency": "USD"
+        },
+        {
+          "origin": "crawled",
+          "source_id": "src_03",
+          "evidence": "$0.011 ~~$0.04%%\nPrice per 1K characters",
+          "name": "v4 Turbo Text to Speech",
+          "unit": "1K characters",
+          "price": 0.011,
+          "currency": "USD"
+        },
+        {
+          "origin": "crawled",
+          "source_id": "src_03",
+          "evidence": "$0.22\nPrice per hour",
+          "name": "Scribe v2 Speech to Text",
+          "unit": "hour",
+          "price": 0.22,
+          "currency": "USD"
+        },
+        {
+          "origin": "crawled",
+          "source_id": "src_03",
+          "evidence": "$0.15\nPrice per minute",
+          "name": "Music Generation",
+          "unit": "minute",
+          "price": 0.15,
+          "currency": "USD"
+        }
+      ],
+      "free_plan": {
+        "origin": "crawled",
+        "source_id": "src_02",
+        "evidence": "Free\n$0per month",
+        "value": true
+      },
+      "trial_days": null
+    },
+    "features": [
+      {
+        "origin": "crawled",
+        "source_id": "src_01",
+        "evidence": "Generate ultra-realistic speech, videos, music, and sound effects.",
+        "id": "f1",
+        "name": "Multimodal Generation",
+        "description": "Generate speech, videos, music, and sound effects.",
+        "screenshot_ids": []
+      },
+      {
+        "origin": "crawled",
+        "source_id": "src_01",
+        "evidence": "Configure, deploy and monitor natural, human-sounding agents in 90+ languages with leading accuracy and ultra-low latency across voice or chat.",
+        "id": "f2",
+        "name": "ElevenAgents",
+        "description": "Configure, deploy and monitor natural, human-sounding agents in 90+ languages across voice or chat.",
+        "screenshot_ids": []
+      },
+      {
+        "origin": "crawled",
+        "source_id": "src_01",
+        "evidence": "Clone your voice, design one from a prompt, or explore 10,000+ voices from the library.",
+        "id": "f3",
+        "name": "Voice Cloning and Design",
+        "description": "Clone your voice, design one from a prompt, or explore 10,000+ voices from the library.",
+        "screenshot_ids": []
+      },
+      {
+        "origin": "crawled",
+        "source_id": "src_01",
+        "evidence": "Create or edit images and turn ideas into videos with leading models like Veo, Wan, Kling and Seedance.",
+        "id": "f4",
+        "name": "Image & Video Generation",
+        "description": "Create or edit images and turn ideas into videos with leading models.",
+        "screenshot_ids": []
+      },
+      {
+        "origin": "crawled",
+        "source_id": "src_01",
+        "evidence": "Generate studio-quality tracks instantly, any genre, any style, vocals or instrumental.",
+        "id": "f5",
+        "name": "Music Generation",
+        "description": "Generate studio-quality tracks instantly, any genre, any style, vocals or instrumental.",
+        "screenshot_ids": []
+      }
+    ],
+    "use_cases": [
+      {
+        "origin": "crawled",
+        "source_id": "src_01",
+        "evidence": "Expressive voices that bring audiobooks and podcasts to life.",
+        "title": "Audiobooks and Podcasts"
+      },
+      {
+        "origin": "crawled",
+        "source_id": "src_01",
+        "evidence": "Playful and engaging voices for cartoons or video games.",
+        "title": "Cartoons and Video Games"
+      },
+      {
+        "origin": "crawled",
+        "source_id": "src_01",
+        "evidence": "Using synthetic voice technology to power multilingual marketing content",
+        "title": "Multilingual Marketing Content"
+      },
+      {
+        "origin": "crawled",
+        "source_id": "src_01",
+        "evidence": "Delivering real-time, multilingual customer support with voice agents",
+        "title": "Customer Support"
+      }
+    ],
+    "limitations": [
+      {
+        "origin": "crawled",
+        "source_id": "src_02",
+        "evidence": "Rollover does not apply to the Free plan.",
+        "text": "Rollover does not apply to the Free plan."
+      }
+    ],
+    "schema_version": "0.2",
+    "audiences": [],
+    "usp": [],
+    "competitors": [],
+    "brand": null,
+    "compliance": null,
+    "affiliate": null,
+    "quality": null
+  },
+  "sources": [
+    {
+      "id": "src_01",
+      "url": "https://elevenlabs.io/",
+      "page_type": "other",
+      "fetched_at": "2026-10-08T01:47:09.146+00:00",
+      "content_hash": "sha256:7b3a034123880feb7cf3f8721b85d798a8403d13511ffac026c8f804a9cadbaa",
+      "region": "VN",
+      "locale": "en-US",
+      "variant": "fit",
+      "markdown_path": "pages/src_01-other-home.md",
+      "image_paths": []
+    },
+    {
+      "id": "src_02",
+      "url": "https://elevenlabs.io/pricing",
+      "page_type": "pricing",
+      "fetched_at": "2026-10-08T01:47:16.286+00:00",
+      "content_hash": "sha256:5bc77d90e1b064a2264722b5fb3869c23090967a57a44d67e09b3db516896748",
+      "region": "VN",
+      "locale": "en-US",
+      "variant": "raw",
+      "markdown_path": "pages/src_02-pricing-pricing.raw.md",
+      "image_paths": []
+    },
+    {
+      "id": "src_03",
+      "url": "https://elevenlabs.io/pricing/api",
+      "page_type": "pricing",
+      "fetched_at": "2026-10-08T01:47:23.021+00:00",
+      "content_hash": "sha256:cbfe022c52622a89440e69e118dd90fae090be75822bc110ea0558ac86c98021",
+      "region": "VN",
+      "locale": "en-US",
+      "variant": "raw",
+      "markdown_path": "pages/src_03-pricing-pricing-api.raw.md",
+      "image_paths": []
+    },
+    {
+      "id": "src_04",
+      "url": "https://elevenlabs.io/pricing/agents",
+      "page_type": "pricing",
+      "fetched_at": "2026-10-08T01:47:29.852+00:00",
+      "content_hash": "sha256:996daf68da73df97352287fb4ea26297e0d9edc080ef8857ef1d9d6d7b8e226d",
+      "region": "VN",
+      "locale": "en-US",
+      "variant": "raw",
+      "markdown_path": "pages/src_04-pricing-pricing-agents.raw.md",
+      "image_paths": []
+    },
+    {
+      "id": "src_05",
+      "url": "https://elevenlabs.io/use-cases",
+      "page_type": "features",
+      "fetched_at": "2026-10-08T01:47:40.507+00:00",
+      "content_hash": "sha256:cd9eda5e5e373c58f20b00c3764195309042880ea56d49fedd57c1fe6b2574aa",
+      "region": "VN",
+      "locale": "en-US",
+      "variant": "fit",
+      "markdown_path": "pages/src_05-features-use-cases.md",
+      "image_paths": []
+    },
+    {
+      "id": "src_06",
+      "url": "https://elevenlabs.io/productions",
+      "page_type": "features",
+      "fetched_at": "2026-10-08T01:47:48.294+00:00",
+      "content_hash": "sha256:172e55839f22aaf883ab5f517bbd9f4951eb29a24f79514fea6a5ca181e03665",
+      "region": "VN",
+      "locale": "en-US",
+      "variant": "fit",
+      "markdown_path": "pages/src_06-features-productions.md",
+      "image_paths": []
+    },
+    {
+      "id": "src_07",
+      "url": "https://elevenlabs.io/text-to-bark",
+      "page_type": "features",
+      "fetched_at": "2026-10-08T01:47:55.200+00:00",
+      "content_hash": "sha256:67837ee3dbbd663b3d236fb730f15372f5fcd4a17734ff0018b251e5cb5d3e3e",
+      "region": "VN",
+      "locale": "en-US",
+      "variant": "fit",
+      "markdown_path": "pages/src_07-features-text-to-bark.md",
+      "image_paths": []
+    },
+    {
+      "id": "src_08",
+      "url": "https://elevenlabs.io/text-to-speech",
+      "page_type": "features",
+      "fetched_at": "2026-10-08T01:48:00.638+00:00",
+      "content_hash": "sha256:76251671a1c272119c997ae7a1d02db716ff8ca9cefa89ac18bbbc9e743ed753",
+      "region": "VN",
+      "locale": "en-US",
+      "variant": "fit",
+      "markdown_path": "pages/src_08-features-text-to-speech.md",
+      "image_paths": []
+    },
+    {
+      "id": "src_09",
+      "url": "https://elevenlabs.io/caption-generator",
+      "page_type": "features",
+      "fetched_at": "2026-10-08T01:48:08.554+00:00",
+      "content_hash": "sha256:cfcf99731672b47653b71c9d777f0bcb753cbbcba78e45ae2b23f3cc9f963ad7",
+      "region": "VN",
+      "locale": "en-US",
+      "variant": "fit",
+      "markdown_path": "pages/src_09-features-caption-generator.md",
+      "image_paths": []
+    },
+    {
+      "id": "src_10",
+      "url": "https://elevenlabs.io/subtitle-generator",
+      "page_type": "features",
+      "fetched_at": "2026-10-08T01:48:15.355+00:00",
+      "content_hash": "sha256:7e5376335e47e459d14e09fb1a1f6ad4b3b0d862857edd862a2c4d0a5ad7b6db",
+      "region": "VN",
+      "locale": "en-US",
+      "variant": "fit",
+      "markdown_path": "pages/src_10-features-subtitle-generator.md",
+      "image_paths": []
+    }
+  ],
+  "meta": {
+    "product": "elevenlabs",
+    "schema_version": "0.2",
+    "model": "gemini-3.5-flash-lite",
+    "mode": "batch",
+    "generated_at": "2026-10-08T02:00:35+00:00",
+    "llm_calls": 1,
+    "cache_hits": 0,
+    "input_tokens": 21973,
+    "output_tokens": 3082,
+    "cost_usd": 0.014297,
+    "evidence_in_source": 0.938,
+    "unknown_source_ids": []
+  }
+}

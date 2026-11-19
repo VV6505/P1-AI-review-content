@@ -1,0 +1,104 @@
+{
+  "schema_version": "p1-ac-03.v1-draft",
+  "product_id": "9f8a3c20-7b41-4e89-bc52-1d0e4f3a7a99",
+  "pkb_schema_version": "0.2",
+  "knowledge_version": 1,
+  "language": "vi",
+  "platform": "tiktok",
+  "audience": "Người muốn tìm hiểu công cụ tạo giọng nói AI",
+  "context_defaults_applied": [],
+  "intent": "education",
+  "target_duration_s": 40,
+  "concept": {
+    "title": "Giới thiệu tính năng tạo giọng nói",
+    "angle": "demo"
+  },
+  "hook": {
+    "text": "Bạn muốn nghe thử công cụ tạo giọng nói AI của ElevenLabs không?",
+    "type": "curiosity",
+    "fact_refs": [
+      { "source_id": "src_01", "field_path": "identity.category" }
+    ]
+  },
+  "scenes": [
+    {
+      "scene_id": "s01",
+      "role": "hook",
+      "narration_segments": [
+        { "segment_id": "s01-u01", "text": "Bạn muốn nghe thử công cụ tạo giọng nói AI của ElevenLabs không?" }
+      ],
+      "subtitle_text": "Thử nghe giọng nói AI của ElevenLabs",
+      "visual_plan": {
+        "kind": "screen_recording",
+        "source_type": "existing_asset",
+        "asset_id": "fixture:screen_recording:home",
+        "purpose": "Mở trang demo do nhóm tự quay"
+      },
+      "claims": [
+        {
+          "text": "ElevenLabs là công cụ tạo giọng nói AI.",
+          "type": "identity",
+          "segment_ids": ["s01-u01"],
+          "fact_refs": [
+            { "source_id": "src_01", "field_path": "identity.category" }
+          ]
+        }
+      ]
+    },
+    {
+      "scene_id": "s02",
+      "role": "demo",
+      "narration_segments": [
+        { "segment_id": "s02-u01", "text": "Trang sản phẩm giới thiệu tính năng tạo speech, video, music và sound effects." }
+      ],
+      "subtitle_text": "Speech · video · music · sound effects",
+      "visual_plan": {
+        "kind": "screen_recording",
+        "source_type": "existing_asset",
+        "asset_id": "fixture:screen_recording:features",
+        "purpose": "Minh họa phần tính năng trên trang sản phẩm"
+      },
+      "claims": [
+        {
+          "text": "Trang sản phẩm liệt kê tạo speech, video, music và sound effects.",
+          "type": "feature",
+          "segment_ids": ["s02-u01"],
+          "fact_refs": [
+            { "source_id": "src_01", "field_path": "features[0]" }
+          ]
+        }
+      ]
+    },
+    {
+      "scene_id": "s03",
+      "role": "proof",
+      "narration_segments": [
+        { "segment_id": "s03-u01", "text": "Bạn có thể xem mô tả chi tiết ngay trên trang tính năng." }
+      ],
+      "subtitle_text": "Xem mô tả tính năng trên trang",
+      "visual_plan": {
+        "kind": "screenshot",
+        "source_type": "existing_asset",
+        "asset_id": "fixture:screenshot:features",
+        "purpose": "Hiển thị phần mô tả tính năng đã có trong tư liệu demo"
+      },
+      "claims": []
+    },
+    {
+      "scene_id": "s04",
+      "role": "cta",
+      "narration_segments": [
+        { "segment_id": "s04-u01", "text": "Mở đường dẫn trong mô tả để tự khám phá thêm." }
+      ],
+      "subtitle_text": "Khám phá thêm qua đường dẫn",
+      "visual_plan": {
+        "kind": "text_card",
+        "source_type": "generated_text",
+        "text": "Khám phá thêm qua đường dẫn",
+        "purpose": "Kết video bằng lời kêu gọi hành động"
+      },
+      "claims": []
+    }
+  ],
+  "cta": { "text": "Mở đường dẫn trong mô tả để tự khám phá thêm.", "destination": null }
+}

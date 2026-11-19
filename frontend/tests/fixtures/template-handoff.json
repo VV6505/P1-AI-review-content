@@ -1,0 +1,344 @@
+{
+  "source_url": "https://fixture.example.com/template",
+  "product_name": "Bố cục FE · dữ liệu giả",
+  "script": {
+    "schema_version": "p1-ac-03.v1-draft",
+    "product_id": "a1000000-0000-4000-8000-000000000001",
+    "pkb_schema_version": "0.2",
+    "knowledge_version": 1,
+    "language": "vi",
+    "platform": "tiktok",
+    "audience": "Người muốn tìm hiểu công cụ tạo giọng nói AI",
+    "context_defaults_applied": [],
+    "intent": "education",
+    "target_duration_s": 40,
+    "concept": {
+      "title": "Bộ kiểm tra bố cục FE",
+      "angle": "demo"
+    },
+    "hook": {
+      "text": "Dữ liệu giả để kiểm tra bố cục.",
+      "type": "demo",
+      "fact_refs": []
+    },
+    "scenes": [
+      {
+        "scene_id": "s01",
+        "role": "demo",
+        "narration_segments": [
+          {
+            "segment_id": "s01-u01",
+            "text": "Clip mẫu để kiểm tra bố cục."
+          }
+        ],
+        "subtitle_text": "Clip fixture",
+        "visual_plan": {
+          "kind": "screen_recording",
+          "source_type": "existing_asset",
+          "asset_id": "fixture:clip",
+          "purpose": "Kiểm tra UI với dữ liệu giả."
+        },
+        "claims": [
+          {
+            "text": "Clip mẫu để kiểm tra bố cục.",
+            "type": "other",
+            "segment_ids": [
+              "s01-u01"
+            ],
+            "fact_refs": [
+              {
+                "source_id": "src_01",
+                "field_path": "features[0]"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "scene_id": "s02",
+        "role": "demo",
+        "narration_segments": [
+          {
+            "segment_id": "s02-u01",
+            "text": "Chọn tư liệu mẫu."
+          },
+          {
+            "segment_id": "s02-u02",
+            "text": "Kiểm tra vị trí chữ."
+          },
+          {
+            "segment_id": "s02-u03",
+            "text": "Xem bản trình bày."
+          }
+        ],
+        "subtitle_text": "Các bước fixture",
+        "visual_plan": {
+          "kind": "screenshot",
+          "source_type": "existing_asset",
+          "asset_id": "fixture:before",
+          "purpose": "Kiểm tra UI với dữ liệu giả."
+        },
+        "claims": [
+          {
+            "text": "Chọn tư liệu mẫu.",
+            "type": "other",
+            "segment_ids": [
+              "s02-u01"
+            ],
+            "fact_refs": [
+              {
+                "source_id": "src_01",
+                "field_path": "features[0]"
+              }
+            ]
+          },
+          {
+            "text": "Kiểm tra vị trí chữ.",
+            "type": "other",
+            "segment_ids": [
+              "s02-u02"
+            ],
+            "fact_refs": [
+              {
+                "source_id": "src_01",
+                "field_path": "features[1]"
+              }
+            ]
+          },
+          {
+            "text": "Xem bản trình bày.",
+            "type": "other",
+            "segment_ids": [
+              "s02-u03"
+            ],
+            "fact_refs": [
+              {
+                "source_id": "src_01",
+                "field_path": "features[2]"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "scene_id": "s03",
+        "role": "result",
+        "narration_segments": [
+          {
+            "segment_id": "s03-u01",
+            "text": "Bản trước để kiểm tra vị trí chữ."
+          },
+          {
+            "segment_id": "s03-u02",
+            "text": "Bản sau để kiểm tra vị trí chữ."
+          }
+        ],
+        "subtitle_text": "Hai phía fixture, không chứng minh kết quả sản phẩm",
+        "visual_plan": {
+          "kind": "screenshot",
+          "source_type": "existing_asset",
+          "asset_id": "fixture:before",
+          "purpose": "Kiểm tra UI với dữ liệu giả."
+        },
+        "claims": [
+          {
+            "text": "Bản trước để kiểm tra vị trí chữ.",
+            "type": "other",
+            "segment_ids": [
+              "s03-u01"
+            ],
+            "fact_refs": [
+              {
+                "source_id": "src_01",
+                "field_path": "features[0]"
+              }
+            ]
+          },
+          {
+            "text": "Bản sau để kiểm tra vị trí chữ.",
+            "type": "other",
+            "segment_ids": [
+              "s03-u02"
+            ],
+            "fact_refs": [
+              {
+                "source_id": "src_01",
+                "field_path": "features[1]"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "scene_id": "s04",
+        "role": "demo",
+        "narration_segments": [
+          {
+            "segment_id": "s04-u01",
+            "text": "Vùng đánh dấu để kiểm tra zoom."
+          }
+        ],
+        "subtitle_text": "Zoom fixture",
+        "visual_plan": {
+          "kind": "screenshot",
+          "source_type": "existing_asset",
+          "asset_id": "fixture:focus",
+          "purpose": "Kiểm tra UI với dữ liệu giả."
+        },
+        "claims": [
+          {
+            "text": "Vùng đánh dấu để kiểm tra zoom.",
+            "type": "other",
+            "segment_ids": [
+              "s04-u01"
+            ],
+            "fact_refs": [
+              {
+                "source_id": "src_01",
+                "field_path": "features[0]"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "cta": {
+      "text": "Kết thúc dữ liệu thử.",
+      "destination": null
+    }
+  },
+  "assets": [
+    {
+      "asset_id": "fixture:clip",
+      "product_id": "a1000000-0000-4000-8000-000000000001",
+      "kind": "video",
+      "rights_basis": "Synthetic layout fixture; no real product or media."
+    },
+    {
+      "asset_id": "fixture:before",
+      "product_id": "a1000000-0000-4000-8000-000000000001",
+      "kind": "image",
+      "rights_basis": "Synthetic layout fixture; no real product or media."
+    },
+    {
+      "asset_id": "fixture:after",
+      "product_id": "a1000000-0000-4000-8000-000000000001",
+      "kind": "image",
+      "rights_basis": "Synthetic layout fixture; no real product or media."
+    },
+    {
+      "asset_id": "fixture:focus",
+      "product_id": "a1000000-0000-4000-8000-000000000001",
+      "kind": "image",
+      "rights_basis": "Synthetic layout fixture; no real product or media."
+    }
+  ],
+  "presentation": {
+    "product_id": "a1000000-0000-4000-8000-000000000001",
+    "knowledge_version": 1,
+    "timing": "fixture",
+    "scenes": [
+      {
+        "scene_id": "s01",
+        "layout": "feature_clip",
+        "title_claim_index": 0,
+        "duration_s": 3,
+        "segments": [
+          {
+            "segment_id": "s01-u01",
+            "start_s": 0,
+            "end_s": 2.8
+          }
+        ],
+        "clip_parts": [
+          {
+            "asset_id": "fixture:clip",
+            "start_s": 1,
+            "end_s": 4
+          }
+        ]
+      },
+      {
+        "scene_id": "s02",
+        "layout": "steps",
+        "title_claim_index": 0,
+        "duration_s": 9,
+        "segments": [
+          {
+            "segment_id": "s02-u01",
+            "start_s": 0,
+            "end_s": 2.8
+          },
+          {
+            "segment_id": "s02-u02",
+            "start_s": 3,
+            "end_s": 5.8
+          },
+          {
+            "segment_id": "s02-u03",
+            "start_s": 6,
+            "end_s": 8.8
+          }
+        ],
+        "step_claim_indices": [
+          0,
+          1,
+          2
+        ]
+      },
+      {
+        "scene_id": "s03",
+        "layout": "before_after",
+        "title_claim_index": 0,
+        "duration_s": 6,
+        "segments": [
+          {
+            "segment_id": "s03-u01",
+            "start_s": 0,
+            "end_s": 2.8
+          },
+          {
+            "segment_id": "s03-u02",
+            "start_s": 3,
+            "end_s": 5.8
+          }
+        ],
+        "panels": [
+          {
+            "label": "Trước",
+            "claim_index": 0,
+            "asset_id": "fixture:before"
+          },
+          {
+            "label": "Sau",
+            "claim_index": 1,
+            "asset_id": "fixture:after"
+          }
+        ]
+      },
+      {
+        "scene_id": "s04",
+        "layout": "highlight_zoom",
+        "title_claim_index": 0,
+        "duration_s": 3,
+        "segments": [
+          {
+            "segment_id": "s04-u01",
+            "start_s": 0,
+            "end_s": 2.8
+          }
+        ],
+        "image_asset_id": "fixture:focus",
+        "focus": {
+          "rect": [
+            0.45,
+            0.35,
+            0.3,
+            0.3
+          ],
+          "at_s": 1
+        }
+      }
+    ]
+  }
+}

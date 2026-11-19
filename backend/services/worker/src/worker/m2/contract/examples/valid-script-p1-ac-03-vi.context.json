@@ -1,0 +1,21 @@
+{
+  "pkb_file": "spikes/m1-crawl-extract/output/elevenlabs/pkb.gemini-3.5-flash-lite.json",
+  "pkb_schema_version": "0.2",
+  "knowledge_version": 1,
+  "product_id": "9f8a3c20-7b41-4e89-bc52-1d0e4f3a7a99",
+  "permitted_assets": [
+    { "asset_id": "fixture:screen_recording:home", "product_id": "9f8a3c20-7b41-4e89-bc52-1d0e4f3a7a99", "kind": "screen_recording", "allowed_use": ["internal_demo"], "rights_basis": "Synthetic fixture only; no real use permission." },
+    { "asset_id": "fixture:screen_recording:features", "product_id": "9f8a3c20-7b41-4e89-bc52-1d0e4f3a7a99", "kind": "screen_recording", "allowed_use": ["internal_demo"], "rights_basis": "Synthetic fixture only; no real use permission." },
+    { "asset_id": "fixture:screenshot:features", "product_id": "9f8a3c20-7b41-4e89-bc52-1d0e4f3a7a99", "kind": "screenshot", "allowed_use": ["internal_demo"], "rights_basis": "Synthetic fixture only; no real use permission." }
+  ],
+  "content_context": {
+    "video_description": "Giới thiệu công cụ tạo giọng nói AI cho người mới tìm hiểu, giọng thân thiện và dễ hiểu; tập trung vào các tính năng đã có căn cứ trong PKB.",
+    "platform": "tiktok",
+    "intent": "education",
+    "audience": "Người muốn tìm hiểu công cụ tạo giọng nói AI",
+    "approved_claims": [],
+    "forbidden_claims": [],
+    "cta": { "text": "Mở đường dẫn trong mô tả để tự khám phá thêm.", "destination": null }
+  },
+  "note": "Synthetic fixture allowlist for validator examples; it does not grant rights to real ElevenLabs assets."
+}

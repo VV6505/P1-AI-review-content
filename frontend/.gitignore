@@ -1,0 +1,46 @@
+# Secrets / env
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Claude Code local files
+.claude/settings.local.json
+.claude/worktrees/
+.remember/
+
+# Logs
+*.log
+
+# Dependencies
+/node_modules
+.pnpm-debug.log*
+
+# Next.js
+/.next/
+/out/
+/build
+next-env.d.ts
+*.tsbuildinfo
+.vercel
+
+# Testing
+/coverage
+/test-results
+
+# Local BE handoff: recorded clips/audio are shared outside Git.
+/public/2026-10-26_s03-feature-clip/
+/public/video-template/s03-centered/
+/public/video-template/video craw/
+
+# Misc
+*.pem

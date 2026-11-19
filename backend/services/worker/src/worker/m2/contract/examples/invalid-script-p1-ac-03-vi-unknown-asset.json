@@ -1,0 +1,34 @@
+{
+  "schema_version": "p1-ac-03.v1-draft",
+  "product_id": "9f8a3c20-7b41-4e89-bc52-1d0e4f3a7a99",
+  "pkb_schema_version": "0.2",
+  "knowledge_version": 1,
+  "language": "vi",
+  "platform": "tiktok",
+  "audience": "Người xem phổ thông",
+  "context_defaults_applied": ["platform", "intent", "audience", "cta"],
+  "intent": "education",
+  "target_duration_s": 40,
+  "concept": { "title": "Giới thiệu tính năng", "angle": "demo" },
+  "hook": { "text": "Một hook", "type": "curiosity", "fact_refs": [] },
+  "scenes": [
+    {
+      "scene_id": "s01", "role": "hook",
+      "narration_segments": [{ "segment_id": "s01-u01", "text": "Cùng xem trang sản phẩm." }],
+      "subtitle_text": "Xem trang sản phẩm",
+      "visual_plan": { "kind": "screen_recording", "source_type": "existing_asset", "asset_id": "https://unapproved.example/image.png", "purpose": "fixture" },
+      "claims": []
+    },
+    {
+      "scene_id": "s02", "role": "demo",
+      "narration_segments": [{ "segment_id": "s02-u01", "text": "Đây là phần demo." }],
+      "subtitle_text": "Demo", "visual_plan": { "kind": "text_card", "source_type": "generated_text", "text": "Demo", "purpose": "fixture" }, "claims": []
+    },
+    {
+      "scene_id": "s03", "role": "cta",
+      "narration_segments": [{ "segment_id": "s03-u01", "text": "Khám phá thêm." }],
+      "subtitle_text": "Khám phá", "visual_plan": { "kind": "text_card", "source_type": "generated_text", "text": "Khám phá", "purpose": "fixture" }, "claims": []
+    }
+  ],
+  "cta": { "text": "Mở đường dẫn trong mô tả để tự khám phá thêm.", "destination": null }
+}

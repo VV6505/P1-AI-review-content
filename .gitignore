@@ -1,0 +1,38 @@
+# Credentials and local settings
+**/.env
+**/.env.*
+!**/.env.example
+**/*.pem
+**/*.key
+
+# Local run data and generated media
+**/data/
+**/output/
+**/outputs/
+**/downloads/
+**/*.mp4
+**/*.webm
+**/*.wav
+**/*.tgz
+**/package/
+
+# Dependencies, caches and build artifacts
+**/node_modules/
+**/.next/
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
+**/dist/
+**/build/
+**/*.pyc
+**/*.tsbuildinfo
+**/next-env.d.ts
+**/test-results/
+**/coverage/
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
