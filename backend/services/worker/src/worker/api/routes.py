@@ -36,6 +36,7 @@ from worker.api.local_db import LocalDatabase
 from worker.api.generator import ScriptGenerationError, ScriptGenerator
 from worker.api.schemas import (
     CrawlRequest,
+    DesignSuggestRequest,
     DiscoveryPreflightOut,
     JobCreated,
     JobPatch,
@@ -561,3 +562,61 @@ def review_script(product_id: UUID, revision: int, body: Review, owner: OwnerDep
     )
     filters = {"product_id": f"eq.{product_id}", "revision": f"eq.{revision}", "select": "status"}
     return _one(_db_call(db.select, "script_revisions", filters, owner.jwt), "script revision")
+
+
+@router.post("/products/{product_id}/scripts/{revision}/design-suggest")
+async def design_suggest(
+    product_id: UUID,
+    revision: int,
+    body: DesignSuggestRequest,
+    who: AnyoneDep,
+    db: Db,
+    settings: SettingsDep,
+) -> Any:
+    """AI phân tích website, ảnh chụp và kịch bản để gợi ý tiêu đề cảnh + bảng màu template."""
+    from worker.render.design import suggest_template_design
+
+    product = await run_in_threadpool(_product, db, who, product_id)
+    script_rows = await run_in_threadpool(
+        _read,
+        db,
+        who,
+        "script_revisions",
+        {"product_id": f"eq.{product_id}", "revision": f"eq.{revision}"},
+    )
+    script_row = _one(script_rows, "script revision")
+    pkb_version = script_row.get("knowledge_version")
+    pkb_rows = await run_in_threadpool(
+        _read,
+        db,
+        who,
+        "product_knowledge",
+        {"product_id": f"eq.{product_id}", "version": f"eq.{pkb_version}"},
+    )
+    pkb_row = _one(pkb_rows, "PKB version")
+
+    asset_paths: list[Path] = []
+    asset_root = Path(settings.page_store_dir).resolve()
+    job_filters: dict[str, str] = (
+        {"id": f"eq.{body.crawl_job_id}"}
+        if body.crawl_job_id
+        else {"product_id": f"eq.{product_id}", "job_type": "eq.crawl", "status": "eq.completed"}
+    )
+    crawl_jobs = await run_in_threadpool(_read, db, who, "generation_jobs", job_filters)
+    if crawl_jobs:
+        manifest = crawl_jobs[-1].get("result_manifest") or {}
+        for asset in manifest.get("assets") or []:
+            raw_path = asset.get("path") if isinstance(asset, dict) else None
+            if not isinstance(raw_path, str) or not raw_path:
+                continue
+            resolved = Path(raw_path).resolve()
+            if resolved.is_relative_to(asset_root) and resolved.is_file():
+                asset_paths.append(resolved)
+
+    return await suggest_template_design(
+        product=product,
+        pkb=pkb_row,
+        script=script_row.get("content") or {},
+        template=body.template,
+        asset_paths=asset_paths,
+    )

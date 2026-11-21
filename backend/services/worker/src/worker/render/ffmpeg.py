@@ -13,11 +13,16 @@ from typing import Any
 
 from PIL import Image, ImageStat
 
+from worker.render.canvas import build_offset_shadow_layers
+from worker.render.design import contrast_text_for, normalize_hex, relative_luminance
+from worker.render.social_canvas import build_social_media_layers
 from worker.render.tts import FallbackTts, Synthesizer
 from worker.settings import Settings
 
 
 PRO_TEMPLATES = {
+    "offset-shadow",
+    "social-media",
     "short-countdown",
     "review-pro",
     "animation",
@@ -31,6 +36,8 @@ SUPPORTED_TEMPLATES = {"cinematic", "animation", "vintage", *PRO_TEMPLATES}
 # Các preset lấy cảm hứng từ catalog template MIT của AI-auto-generate-video.
 # Renderer vẫn thuộc P1: clip/ảnh thật của sản phẩm luôn được đặt contain trong khung.
 TEMPLATE_PALETTES = {
+    "offset-shadow": ("faf3ec", "e44332", "ffffff"),
+    "social-media": ("f9f7f4", "5b5ce6", "ffffff"),
     "short-countdown": ("facc15", "111827", "ffffff"),
     "animation": ("180d2b", "e879f9", "2c1b46"),
     "review-pro": ("07110d", "8ee8bc", "15231d"),
@@ -125,6 +132,9 @@ def _caption_chunks(text: str, target_words: int = 7) -> list[str]:
     return chunks
 
 
+INTERNAL_ROLES = {"HOOK", "PROBLEM", "DEMO", "RESULT", "CTA", "FEATURE", "PROOF"}
+
+
 def _display_headline(
     scene: dict[str, Any], script: dict[str, Any], override: dict[str, Any], narration: str
 ) -> str:
@@ -132,8 +142,11 @@ def _display_headline(
     role = str(scene.get("role") or "").lower()
     approved = script.get("hook") if role == "hook" else script.get("cta") if role == "cta" else None
     approved_text = approved.get("text") if isinstance(approved, dict) else None
+    override_headline = str(override.get("headline") or "").strip()
+    if override_headline.upper() in INTERNAL_ROLES:
+        override_headline = ""
     candidate = (
-        override.get("headline")
+        override_headline
         or approved_text
         or scene.get("subtitle_text")
         or narration
@@ -143,6 +156,50 @@ def _display_headline(
     if len(words) > 11:
         headline += "…"
     return headline[:90]
+
+
+def _media_dimensions(asset: Path, settings: Settings) -> tuple[int, int]:
+    """Đọc kích thước gốc (width, height) của ảnh hoặc video để ôm sát khung thẻ."""
+    suffix = asset.suffix.lower()
+    if suffix in {".png", ".jpg", ".jpeg", ".webp"}:
+        try:
+            with Image.open(asset) as img:
+                w, h = img.size
+                if w > 0 and h > 0:
+                    return w, h
+        except OSError:
+            pass
+    elif suffix in {".mp4", ".webm", ".mov", ".mkv"}:
+        try:
+            info = _probe(settings, asset)
+            vs = next((s for s in info.get("streams", []) if s.get("codec_type") == "video"), {})
+            w, h = int(vs.get("width") or 0), int(vs.get("height") or 0)
+            if w > 0 and h > 0:
+                return w, h
+        except RenderError:
+            pass
+    return 1280, 720
+
+
+def _fit_box(src_w: int, src_h: int, max_w: int, max_h: int) -> tuple[int, int]:
+    scale = min(max_w / max(1, src_w), max_h / max(1, src_h))
+    fit_w = max(2, int(round(src_w * scale)) // 2 * 2)
+    fit_h = max(2, int(round(src_h * scale)) // 2 * 2)
+    return fit_w, fit_h
+
+
+def _strip_hash(hex_color: str, fallback: str) -> str:
+    return normalize_hex(hex_color, f"#{fallback}")[1:].lower()
+
+
+def _safe_keyword_hex(accent_hex: str, on_dark_pill: bool) -> str:
+    """Đảm bảo màu nhấn từ khóa phụ đề luôn có độ tương phản cao, không bị chìm."""
+    lum = relative_luminance(f"#{accent_hex}")
+    if on_dark_pill and lum < 0.22:
+        return "fde047"
+    if not on_dark_pill and lum > 0.72:
+        return "e44332"
+    return accent_hex
 
 
 def _ass_color(hex_color: str) -> str:
@@ -241,87 +298,119 @@ def _ass(
     duration: float,
     template: str,
     graphics: dict[str, Any],
+    *,
+    bg_hex: str = "111827",
+    accent_hex: str = "8ee8bc",
+    card_hex: str = "ffffff",
+    has_media: bool = True,
+    captions_only: bool = False,
 ) -> None:
-    size = 42 if height <= 1280 else 58
-    margin = 90 if height > width else 60
-    style_by_template = {
-        "short-countdown": ("Arial", "&H00FFFFFF", "&H00111827"),
-        "cinematic": ("Arial", "&H00FFFFFF", "&H00101824"),
-        "animation": ("Arial", "&H00FFFFFF", "&H00601F74"),
-        "vintage": ("Georgia", "&H00E8E0C8", "&H0033261B"),
-        "review-pro": ("Arial", "&H00FFFFFF", "&H00101917"),
-        "reels-aurora": ("Arial", "&H00FFFFFF", "&H00351016"),
-        "reels-editorial": ("Arial", "&H0028231F", "&H00EFE9DF"),
-        "reels-neon": ("Arial", "&H00FFFFFF", "&H00120907"),
-        "reels-comparison": ("Arial", "&H00FFFFFF", "&H00181907"),
-    }
-    font, primary, outline = style_by_template.get(template, style_by_template["cinematic"])
+    is_portrait = height > width
+    is_hd = max(width, height) >= 1600
+    is_light_bg = relative_luminance(f"#{bg_hex}") > 0.42
+    is_light_card = relative_luminance(f"#{card_hex}") > 0.42
+    font = "Georgia" if template == "vintage" else "Arial"
+
+    caption_margin_x = round(width * 0.08)
+    caption_margin_v = (
+        (210 if is_hd else 140) if is_portrait else (56 if is_hd else 38)
+    )
+    badge_margin_v = (128 if is_hd else 86) if is_portrait else (34 if is_hd else 24)
+    headline_margin_v = (232 if is_hd else 156) if is_portrait else (96 if is_hd else 64)
+    headline_margin_x = round(width * 0.08)
+
     style_format = (
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, "
         "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, "
         "BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding"
     )
-    caption_size = 64 if template == "short-countdown" and height > 1280 else (52 if template in PRO_TEMPLATES and height > 1280 else size)
+
+    # Phụ đề luôn nằm trong hộp tối tương phản cao (BorderStyle=3) với từ khóa sáng nổi bật.
+    caption_size = (
+        (52 if is_hd else 36) if is_portrait else (44 if is_hd else 32)
+    )
+    caption_pad = 14 if is_hd else 10
+    caption_shadow = 7 if template == "offset-shadow" else 3
+    caption_box_ass = "&H00111827" if template == "offset-shadow" or is_light_bg else "&H180B101B"
+    caption_shadow_ass = _ass_color(accent_hex) if (template == "offset-shadow" and not is_light_bg) else "&H00000000"
     style = (
-        f"Style: Caption,{font},{caption_size},{primary},&H000000FF,{outline},&H80000000,"
-        f"-1,0,0,0,100,100,0,0,1,3,1,2,{margin},{margin},{margin},1"
+        f"Style: Caption,{font},{caption_size},&H00FFFFFF,&H000000FF,{caption_box_ass},"
+        f"{caption_shadow_ass},-1,0,0,0,100,100,0,0,3,{caption_pad},{caption_shadow},2,"
+        f"{caption_margin_x},{caption_margin_x},{caption_margin_v},1"
     )
-    headline_primary = "&H0028231F" if template == "reels-editorial" else "&H00FFFFFF"
-    headline_outline = "&H00EFE9DF" if template == "reels-editorial" else "&H00101917"
+
+    # Tiêu đề đặt gọn phía trên khung sản phẩm, tự tính tương phản theo màu nền.
+    headline_primary = "&H00111827" if is_light_bg else "&H00FFFFFF"
+    headline_outline = _ass_color(bg_hex) if is_light_bg else "&H000B101B"
+    headline_size = (56 if is_hd else 38) if is_portrait else (44 if is_hd else 30)
     headline_style = (
-        f"Style: Headline,{font},{76 if height > 1280 else 48},{headline_primary},"
-        f"&H000000FF,{headline_outline},&H80000000,-1,0,0,0,100,100,0,0,1,3,1,8,70,70,110,1"
+        f"Style: Headline,{font},{headline_size},{headline_primary},"
+        f"&H000000FF,{headline_outline},&H40000000,-1,0,0,0,100,100,0,0,1,"
+        f"{2 if is_light_bg else 4},{0 if is_light_bg else 2},8,"
+        f"{headline_margin_x},{headline_margin_x},{headline_margin_v},1"
     )
-    accent_hex = TEMPLATE_PALETTES.get(template, ("111827", "8ee8bc", "15231d"))[1]
-    accent_ass = _ass_color(accent_hex)
+
+    # Badge căn giữa trên cùng, nền màu nhấn (hoặc đen đậm), chữ tương phản tuyệt đối + bóng lệch.
+    badge_bg_hex = accent_hex if relative_luminance(f"#{accent_hex}") < 0.65 else "111827"
+    badge_fg_hex = contrast_text_for(f"#{badge_bg_hex}")[1:]
+    badge_bg_ass = _ass_color(badge_bg_hex)
+    badge_fg_ass = _ass_color(badge_fg_hex)
+    badge_size = (30 if is_hd else 22) if is_portrait else (26 if is_hd else 18)
+    badge_pad = 12 if is_hd else 8
+    badge_shadow = 6 if template == "offset-shadow" else 2
     badge_style = (
-        f"Style: Badge,{font},{34 if height > 1280 else 24},{accent_ass},&H000000FF,"
-        f"{headline_outline},&HAA101917,-1,0,0,0,100,100,1,0,3,1,0,7,70,70,70,1"
+        f"Style: Badge,{font},{badge_size},{badge_fg_ass},&H000000FF,"
+        f"{badge_bg_ass},&H00111827,-1,0,0,0,100,100,1,0,3,{badge_pad},{badge_shadow},8,"
+        f"70,70,{badge_margin_v},1"
     )
+
+    # Card chỉ dùng cho cảnh text-only (ví dụ CTA không có ảnh), đặt chính giữa trong khung thẻ đã vẽ.
+    card_fg = "&H00111827" if is_light_card else "&H00FFFFFF"
+    card_size = (58 if is_hd else 40) if is_portrait else (48 if is_hd else 34)
     card_style = (
-        f"Style: Card,{font},{58 if height > 1280 else 38},{headline_primary},&H000000FF,"
-        f"{accent_ass},&HD0101917,-1,0,0,0,100,100,0,0,3,3,1,5,90,90,120,1"
+        f"Style: Card,{font},{card_size},{card_fg},&H000000FF,"
+        f"{card_fg},&H00000000,-1,0,0,0,100,100,0,0,1,0,0,5,"
+        f"{round(width * 0.14)},{round(width * 0.14)},120,1"
     )
+
+    keyword_hex = _safe_keyword_hex(accent_hex, on_dark_pill=True)
+    keyword_ass = _ass_color(keyword_hex)
+
     events: list[str] = []
     if template in PRO_TEMPLATES:
-        if template == "short-countdown":
-            number = str(graphics.get("countdown", ""))
-            if number:
+        if not captions_only:
+            countdown = str(graphics.get("countdown", ""))
+            badge_label = str(graphics.get("badge", "ĐIỂM NỔI BẬT")).strip()
+            badge_text = f"#{countdown}  ·  {badge_label}" if (template == "short-countdown" and countdown) else badge_label
+            events.append(
+                f"Dialogue: 4,0:00:00.10,{_ass_time(duration)},Badge,,0,0,0,,"
+                f"{{\\fad(140,140)}}  {_ass_escape(badge_text)}  "
+            )
+            if not has_media:
                 events.append(
-                    f"Dialogue: 1,0:00:00.00,{_ass_time(duration)},Headline,,0,0,0,,"
-                    f"{{\\an7\\pos(95,145)\\fs220\\bord5\\c&H00FFFFFF&\\fad(100,150)}}{_ass_escape(number)}"
+                    f"Dialogue: 3,0:00:00.00,{_ass_time(duration)},Card,,0,0,0,,"
+                    f"{{\\fad(160,160)}}{_ass_escape(headline)}"
                 )
-        card = str(graphics.get("card", "feature"))
-        if card in {"hook", "cta", "comparison", "countdown"}:
-            end = min(duration, 3.2 if card == "hook" else duration)
-            start = 0.0 if card == "hook" else max(0.0, duration - 3.6)
-            events.append(
-                f"Dialogue: 3,{_ass_time(start)},{_ass_time(end)},Card,,0,0,0,,"
-                f"{{\\fad(180,220)}}{_ass_escape(headline)}"
-            )
-        else:
-            events.append(
-                f"Dialogue: 1,0:00:00.00,{_ass_time(duration)},Headline,,0,0,0,,"
-                f"{{\\fad(180,180)}}{_ass_escape(headline)}"
-            )
-        events.append(
-            f"Dialogue: 4,0:00:00.25,{_ass_time(min(duration, 3.8))},Badge,,0,0,0,,"
-            f"{{\\fad(120,180)}}{_ass_escape(str(graphics.get('icon_glyph', '✦')))}  "
-            f"{_ass_escape(str(graphics.get('badge', 'ĐIỂM NỔI BẬT')))}"
+            else:
+                events.append(
+                    f"Dialogue: 2,0:00:00.00,{_ass_time(duration)},Headline,,0,0,0,,"
+                    f"{{\\fad(160,160)}}{_ass_escape(headline)}"
+                )
+        chunks = _caption_chunks(
+            text, target_words=5 if template in {"offset-shadow", "social-media", "animation", "short-countdown"} else 7
         )
-        chunks = _caption_chunks(text, target_words=4 if template in {"animation", "short-countdown"} else 7)
         chunk_duration = duration / max(1, len(chunks))
         for index, chunk in enumerate(chunks):
             start = index * chunk_duration
             end = min(duration, (index + 1) * chunk_duration + 0.08)
             entrance = (
-                r"{\fad(70,90)\fscx88\fscy88\t(0,140,\fscx100\fscy100)}"
-                if template in {"animation", "short-countdown"}
-                else r"{\fad(100,100)}"
+                r"{\fad(60,80)\fscx92\fscy92\t(0,110,\fscx100\fscy100)}"
+                if template in {"offset-shadow", "social-media", "animation", "short-countdown"}
+                else r"{\fad(90,90)}"
             )
             events.append(
-                f"Dialogue: 2,{_ass_time(start)},{_ass_time(end)},Caption,,0,0,0,,"
-                f"{entrance}{_highlight_ass(chunk, list(graphics.get('keywords', [])), accent_ass)}"
+                f"Dialogue: 3,{_ass_time(start)},{_ass_time(end)},Caption,,0,0,0,,"
+                f"{entrance}{_highlight_ass(chunk, list(graphics.get('keywords', [])), keyword_ass)}"
             )
     else:
         events.append(
@@ -353,25 +442,36 @@ def _filter_path(path: Path) -> str:
 
 
 def _motion_filter(style: str, width: int, height: int, fps: int, duration: float) -> str:
-    """Ken Burns nhẹ cho ảnh tĩnh; giữ mức zoom nhỏ để sản phẩm vẫn nằm trong khung."""
-    frames = max(1, round(duration * fps))
+    """Ken Burns mượt cho ảnh tĩnh (nhận 1 khung gốc, không dùng -loop 1 để `on` tăng thật)."""
+    frames = max(2, round(duration * fps))
     center_x = "iw/2-(iw/zoom/2)"
     center_y = "ih/2-(ih/zoom/2)"
+    progress = f"on/{frames - 1}"
     if style == "zoom_out":
-        zoom = "if(eq(on,0),1.06,max(1.0,zoom-0.00055))"
+        zoom = f"1.09-0.09*({progress})"
         x, y = center_x, center_y
     elif style == "pan_left":
-        zoom = "1.06"
-        x, y = f"(iw-iw/zoom)*(1-on/{frames})", center_y
+        zoom = "1.09"
+        x, y = f"(iw-iw/zoom)*(1-({progress}))", center_y
     elif style == "pan_right":
-        zoom = "1.06"
-        x, y = f"(iw-iw/zoom)*(on/{frames})", center_y
+        zoom = "1.09"
+        x, y = f"(iw-iw/zoom)*({progress})", center_y
     elif style == "none":
-        return ""
+        return f",loop=loop=-1:size=1:start=0,fps={fps}"
     else:
-        zoom = "min(zoom+0.00055,1.06)"
+        zoom = f"1.0+0.09*({progress})"
         x, y = center_x, center_y
-    return f",zoompan=z='{zoom}':x='{x}':y='{y}':d=1:s={width}x{height}:fps={fps}"
+    return f",zoompan=z='{zoom}':x='{x}':y='{y}':d={frames}:s={width}x{height}:fps={fps}"
+
+
+def _ease_out_expr(start_s: float, dur_s: float, delta_px: int, base_px: int = 0) -> str:
+    """Biểu thức FFmpeg trượt mượt quadratic ease-out từ `base_px + delta_px` về `base_px`."""
+    end_s = start_s + dur_s
+    start_val = base_px + delta_px
+    return (
+        f"if(lt(t\\,{start_s:.3f})\\,{start_val}\\,"
+        f"if(lt(t\\,{end_s:.3f})\\,{base_px}+({delta_px})*pow(1-(t-{start_s:.3f})/{dur_s:.3f}\\,2)\\,{base_px}))"
+    )
 
 
 def _probe(settings: Settings, video: Path) -> dict[str, Any]:
@@ -431,16 +531,22 @@ def render_video(
     if template not in SUPPORTED_TEMPLATES:
         raise RenderError("template không nằm trong catalog renderer P1")
     fps = 30 if template in PRO_TEMPLATES else 24
-    transition = options.get("transition", "fade")
-    if transition not in {"fade", "none"}:
-        raise RenderError("transition chỉ nhận fade hoặc none")
-    colors = {
-        "cinematic": "111827",
-        "animation": "312e81",
-        "vintage": "3f2d20",
-        **{name: palette[0] for name, palette in TEMPLATE_PALETTES.items()},
-    }
-    color = colors.get(template, colors["cinematic"])
+    transition = options.get("transition", "slide" if template in {"offset-shadow", "social-media"} else "fade")
+    if transition not in {"slide", "fade", "none"}:
+        raise RenderError("transition chỉ nhận slide, fade hoặc none")
+    default_palette = TEMPLATE_PALETTES.get(
+        template,
+        {
+            "cinematic": ("111827", "8ee8bc", "15231d"),
+            "vintage": ("3f2d20", "e8d5b7", "2c1e14"),
+        }.get(template, ("111827", "8ee8bc", "15231d")),
+    )
+    custom_bg = options.get("bg_color")
+    custom_accent = options.get("accent_color")
+    custom_card = options.get("card_color")
+    base_bg = _strip_hash(str(custom_bg), default_palette[0]) if isinstance(custom_bg, str) and custom_bg.strip() else default_palette[0]
+    base_accent = _strip_hash(str(custom_accent), default_palette[1]) if isinstance(custom_accent, str) and custom_accent.strip() else default_palette[1]
+    base_card = _strip_hash(str(custom_card), default_palette[2]) if isinstance(custom_card, str) and custom_card.strip() else default_palette[2]
     raw_assets = options.get("asset_paths")
     assets: dict[str, Any] = raw_assets if isinstance(raw_assets, dict) else {}
     asset_root = Path(settings.page_store_dir).resolve()
@@ -487,9 +593,12 @@ def render_video(
         prepared.append(
             {
                 "id": scene_id,
+                "scene": scene,
+                "override": override,
+                "narration": narration,
                 "audio": audio,
                 "speech": speech,
-                "duration": max(4.0, speech + 0.55),
+                "duration": max(3.0, speech + 0.22),
                 "subtitle": str(
                     override.get("subtitle") or scene.get("subtitle_text") or narration
                 ),
@@ -503,9 +612,11 @@ def render_video(
                 ),
             }
         )
-        prepared[-1]["graphics"] = _graphic_cues(
-            prepared[-1]["role"], prepared[-1]["headline"], narration
-        )
+        graphics = _graphic_cues(prepared[-1]["role"], prepared[-1]["headline"], narration)
+        custom_badge = str(override.get("badge") or "").strip()
+        if custom_badge and custom_badge.upper() not in INTERNAL_ROLES:
+            graphics["badge"] = custom_badge.upper()[:22]
+        prepared[-1]["graphics"] = graphics
         if template == "short-countdown" and 1 < index < len(scenes):
             prepared[-1]["graphics"]["countdown"] = f"{len(scenes) - index:02}"
     total = sum(item["duration"] for item in prepared)
@@ -534,160 +645,412 @@ def render_video(
     real_media = 0
     unique_media: set[str] = set()
     files: list[Path] = []
-    accent_for_icons = TEMPLATE_PALETTES.get(template, ("111827", "8ee8bc", "15231d"))[1]
-    icon_paths = _rasterize_lucide_icons(
-        {str(item["graphics"].get("icon", "")) for item in prepared},
-        output_dir / "graphics",
-        accent_for_icons,
-    )
-    for item in prepared:
+    product_name = str(options.get("product_name") or "").strip()
+    website_url = str(options.get("website_url") or "").strip()
+    use_xfade = len(prepared) > 1 and transition in {"slide", "fade"} and template in PRO_TEMPLATES
+    xfade_dur = 0.30
+    scene_durations: list[float] = []
+    for scene_index, item in enumerate(prepared, start=1):
         scene_path = scene_dir / f"{item['id']}.mp4"
         ass = scene_dir / f"{item['id']}.ass"
+        asset: Path | None = item["asset"]
+        scene_bg = base_bg
+        if template == "short-countdown" and not (isinstance(custom_bg, str) and custom_bg.strip()):
+            scene_bg = ("facc15", "1e293b", "0f766e", "6b21a8", "9a3412")[len(files) % 5]
+        use_rich_canvas = template in {"offset-shadow", "social-media"}
+        scene_dur = float(item["duration"])
         _ass(
             ass,
             item["subtitle"],
             item["headline"],
             width,
             height,
-            item["duration"],
+            scene_dur,
             template,
             item["graphics"],
+            bg_hex=scene_bg,
+            accent_hex=base_accent,
+            card_hex=base_card,
+            has_media=asset is not None,
+            captions_only=use_rich_canvas,
         )
-        asset: Path | None = item["asset"]
         command = [settings.ffmpeg_bin, "-y", "-loglevel", "error"]
-        if asset is None:
-            command += [
-                "-f",
-                "lavfi",
-                "-i",
-                f"color=c=0x{color}:s={width}x{height}:r={fps}:d={item['duration']}",
-            ]
-        elif asset.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}:
-            if not _image_has_content(asset):
-                raise RenderError(f"asset {item['asset_id']} là ảnh trắng hoặc không đọc được")
-            real_media += 1
-            unique_media.add(str(item["asset_id"]))
-            command += ["-loop", "1", "-framerate", str(fps), "-i", str(asset)]
-        elif asset.suffix.lower() in {".mp4", ".webm", ".mov", ".mkv"}:
-            real_media += 1
-            unique_media.add(str(item["asset_id"]))
-            command += ["-stream_loop", "-1", "-i", str(asset)]
-        else:
-            raise RenderError(f"asset {item['asset_id']} có loại file chưa hỗ trợ")
-        review_composite = template in PRO_TEMPLATES and asset is not None
-        if review_composite:
-            background, _, _ = TEMPLATE_PALETTES[template]
-            if template == "short-countdown":
-                background = ("facc15", "1e293b", "0f766e", "6b21a8", "9a3412")[len(files) % 5]
-            command += [
-                "-f",
-                "lavfi",
-                "-i",
-                f"color=c=0x{background}:s={width}x{height}:r={fps}:d={item['duration']}",
-            ]
-        audio_input_index = 2 if review_composite else 1
-        command += ["-i", str(item["audio"])]
-        icon_name = str(item["graphics"].get("icon", ""))
-        icon_path = icon_paths.get(icon_name)
-        icon_input_index = audio_input_index + 1
-        if icon_path is not None:
-            command += ["-loop", "1", "-i", str(icon_path)]
+        is_still = asset is not None and asset.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}
+        is_video_media = asset is not None and asset.suffix.lower() in {".mp4", ".webm", ".mov", ".mkv"}
         template_filter = {
-            "short-countdown": "eq=contrast=1.08:saturation=1.12",
+            "offset-shadow": "eq=contrast=1.03:saturation=1.05",
+            "social-media": "eq=contrast=1.02:saturation=1.08",
+            "short-countdown": "eq=contrast=1.06:saturation=1.10",
             "cinematic": "eq=contrast=1.08:saturation=1.05",
-            "animation": "eq=contrast=1.04:saturation=1.18",
+            "animation": "eq=contrast=1.04:saturation=1.16",
             "vintage": "colorchannelmixer=.393:.769:.189:.349:.686:.168:.272:.534:.131",
-            "review-pro": "eq=contrast=1.06:saturation=1.08",
-            "reels-aurora": "eq=contrast=1.05:saturation=1.14",
-            "reels-editorial": "eq=contrast=1.03:saturation=.90:brightness=.02",
-            "reels-neon": "eq=contrast=1.12:saturation=1.18",
-            "reels-comparison": "eq=contrast=1.07:saturation=1.10",
+            "review-pro": "eq=contrast=1.05:saturation=1.06",
+            "reels-aurora": "eq=contrast=1.05:saturation=1.12",
+            "reels-editorial": "eq=contrast=1.03:saturation=.94:brightness=.01",
+            "reels-neon": "eq=contrast=1.10:saturation=1.15",
+            "reels-comparison": "eq=contrast=1.06:saturation=1.08",
         }[template]
         transition_filter = ""
         audio_fade = ""
-        if transition == "fade":
-            fade_out = max(0.0, float(item["duration"]) - 0.35)
-            transition_filter = f",fade=t=out:st={fade_out:.3f}:d=0.35"
-            audio_fade = (
-                f",afade=t=in:st=0:d=0.2,afade=t=out:st={fade_out:.3f}:d=0.3"
+        if transition != "none" and not use_xfade:
+            fade_out = max(0.0, scene_dur - 0.30)
+            transition_filter = f",fade=t=out:st={fade_out:.3f}:d=0.30"
+            audio_fade = f",afade=t=in:st=0:d=0.12,afade=t=out:st={fade_out:.3f}:d=0.22"
+        elif use_xfade:
+            audio_fade = ",afade=t=in:st=0:d=0.08"
+
+        if use_rich_canvas:
+            media_dim: tuple[int, int] | None = None
+            if asset is not None:
+                if is_still and not _image_has_content(asset):
+                    raise RenderError(f"asset {item['asset_id']} là ảnh trắng hoặc không đọc được")
+                if not is_still and not is_video_media:
+                    raise RenderError(f"asset {item['asset_id']} có loại file chưa hỗ trợ")
+                real_media += 1
+                unique_media.add(str(item["asset_id"]))
+                media_dim = _media_dimensions(asset, settings)
+            if template == "social-media":
+                sm_layers = build_social_media_layers(
+                    output_dir=scene_dir / "layers",
+                    scene_id=str(item["id"]),
+                    width=width,
+                    height=height,
+                    scene=item["scene"],
+                    override=item["override"],
+                    headline=item["headline"],
+                    badge=str(item["graphics"].get("badge", "ĐIỂM NỔI BẬT")),
+                    narration=item["narration"],
+                    scene_index=scene_index,
+                    scene_total=len(prepared),
+                    product_name=product_name,
+                    website_url=website_url,
+                    bg_hex=scene_bg,
+                    accent_hex=base_accent,
+                    card_hex=base_card,
+                    media_size=media_dim,
+                    is_video_media=is_video_media,
+                )
+                bg_layer = sm_layers.bg_path
+                float_a_layer: Path | None = sm_layers.float_a_path
+                float_b_layer: Path | None = sm_layers.float_b_path
+                title_layer = sm_layers.title_path
+                browser_layer = sm_layers.card_path
+                info_layer = sm_layers.info_path
+                cta_btn_layer = sm_layers.cta_btn_path
+                progress_layer = sm_layers.progress_path
+                progress_box = sm_layers.progress_box
+                media_box = sm_layers.media_box
+            else:
+                os_layers = build_offset_shadow_layers(
+                    output_dir=scene_dir / "layers",
+                    scene_id=str(item["id"]),
+                    width=width,
+                    height=height,
+                    scene=item["scene"],
+                    override=item["override"],
+                    headline=item["headline"],
+                    badge=str(item["graphics"].get("badge", "ĐIỂM NỔI BẬT")),
+                    narration=item["narration"],
+                    scene_index=scene_index,
+                    scene_total=len(prepared),
+                    product_name=product_name,
+                    website_url=website_url,
+                    bg_hex=scene_bg,
+                    accent_hex=base_accent,
+                    card_hex=base_card,
+                    media_size=media_dim,
+                    is_video_media=is_video_media,
+                )
+                bg_layer = os_layers.bg_path
+                float_a_layer = None
+                float_b_layer = None
+                title_layer = os_layers.title_path
+                browser_layer = os_layers.browser_path
+                info_layer = os_layers.info_path
+                cta_btn_layer = os_layers.cta_btn_path
+                progress_layer = os_layers.progress_path
+                progress_box = os_layers.progress_box
+                media_box = os_layers.media_box
+
+            # Nạp input theo đúng thứ tự: 0=bg, sau đó audio + các lớp RGBA + media.
+            idx = 0
+            command += ["-loop", "1", "-framerate", str(fps), "-i", str(bg_layer)]
+            bg_idx = idx
+            idx += 1
+
+            command += ["-i", str(item["audio"])]
+            audio_input_index = idx
+            idx += 1
+
+            prog_idx: int | None = None
+            if progress_layer is not None and progress_box is not None:
+                command += ["-loop", "1", "-framerate", str(fps), "-i", str(progress_layer)]
+                prog_idx = idx
+                idx += 1
+
+            float_a_idx: int | None = None
+            if float_a_layer is not None:
+                command += ["-loop", "1", "-framerate", str(fps), "-i", str(float_a_layer)]
+                float_a_idx = idx
+                idx += 1
+
+            float_b_idx: int | None = None
+            if float_b_layer is not None:
+                command += ["-loop", "1", "-framerate", str(fps), "-i", str(float_b_layer)]
+                float_b_idx = idx
+                idx += 1
+
+            title_idx: int | None = None
+            if title_layer is not None:
+                command += ["-loop", "1", "-framerate", str(fps), "-i", str(title_layer)]
+                title_idx = idx
+                idx += 1
+
+            browser_idx: int | None = None
+            media_idx: int | None = None
+            if browser_layer is not None and media_box is not None and asset is not None:
+                command += ["-loop", "1", "-framerate", str(fps), "-i", str(browser_layer)]
+                browser_idx = idx
+                idx += 1
+                if is_still:
+                    command += ["-i", str(asset)]
+                else:
+                    command += ["-stream_loop", "-1", "-i", str(asset)]
+                media_idx = idx
+                idx += 1
+
+            info_idx: int | None = None
+            if info_layer is not None:
+                command += ["-loop", "1", "-framerate", str(fps), "-i", str(info_layer)]
+                info_idx = idx
+                idx += 1
+
+            cta_btn_idx: int | None = None
+            if cta_btn_layer is not None:
+                command += ["-loop", "1", "-framerate", str(fps), "-i", str(cta_btn_layer)]
+                cta_btn_idx = idx
+                idx += 1
+
+            filter_parts: list[str] = [f"[{bg_idx}:v]scale={width}:{height},fps={fps},format=rgba[s0]"]
+            cur = "s0"
+            step = 1
+            slide_scale = (width / 1080.0) if height > width else (height / 1080.0)
+
+            # 1. Thanh tiến độ sống chạy mượt 0% → 100% suốt cảnh
+            if prog_idx is not None and progress_box is not None:
+                px, py, pw, ph = progress_box
+                nxt = f"s{step}"
+                step += 1
+                filter_parts.append(
+                    f"color=c=black@0.0:s={pw}x{ph}:r={fps}:d={scene_dur:.3f},format=rgba[trk];"
+                    f"[{prog_idx}:v]format=rgba[pfill];"
+                    f"[trk][pfill]overlay=x='-w+w*min(1\\,t/{scene_dur:.3f})':y=0:shortest=1[pbar];"
+                    f"[{cur}][pbar]overlay={px}:{py}:shortest=1[{nxt}]"
+                )
+                cur = nxt
+
+            # 2. Title Card trượt từ trên xuống + fade-in mượt (0.00s → 0.32s)
+            if title_idx is not None:
+                nxt = f"s{step}"
+                step += 1
+                ty_expr = _ease_out_expr(0.0, 0.32, -round(64 * slide_scale))
+                filter_parts.append(
+                    f"[{title_idx}:v]format=rgba,fade=t=in:st=0.0:d=0.22:alpha=1[tlay];"
+                    f"[{cur}][tlay]overlay=x=0:y='{ty_expr}':shortest=1[{nxt}]"
+                )
+                cur = nxt
+
+            # 3. Browser/App Card + Media trượt cùng nhau từ dưới lên (0.08s → 0.42s) + Ken Burns / 1.45x demo
+            if browser_idx is not None and media_idx is not None and media_box is not None:
+                mx, my, mw, mh = media_box
+                by_expr = _ease_out_expr(0.08, 0.34, round(68 * slide_scale))
+                my_expr = _ease_out_expr(0.08, 0.34, round(68 * slide_scale), base_px=my)
+                nxt1 = f"s{step}"
+                step += 1
+                nxt2 = f"s{step}"
+                step += 1
+                if is_still:
+                    media_prep = f"scale={mw}:{mh}:flags=lanczos,setsar=1{_motion_filter(item['motion'], mw, mh, fps, scene_dur)},format=rgba,fade=t=in:st=0.08:d=0.22:alpha=1"
+                else:
+                    media_prep = f"setpts=0.69*PTS,scale={mw}:{mh}:flags=lanczos,setsar=1,fps={fps},format=rgba,fade=t=in:st=0.08:d=0.22:alpha=1"
+                filter_parts.append(
+                    f"[{browser_idx}:v]format=rgba,fade=t=in:st=0.08:d=0.22:alpha=1[blay];"
+                    f"[{cur}][blay]overlay=x=0:y='{by_expr}':shortest=1[{nxt1}];"
+                    f"[{media_idx}:v]{media_prep}[prod];"
+                    f"[{nxt1}][prod]overlay=x={mx}:y='{my_expr}':shortest=1[{nxt2}]"
+                )
+                cur = nxt2
+
+            # 4. Highlights Card (hoặc CTA Card) trượt từ dưới lên trễ nhịp (0.24s → 0.60s)
+            if info_idx is not None:
+                nxt = f"s{step}"
+                step += 1
+                st_info = 0.04 if browser_layer is None else 0.24
+                iy_expr = _ease_out_expr(st_info, 0.36, round(82 * slide_scale))
+                filter_parts.append(
+                    f"[{info_idx}:v]format=rgba,fade=t=in:st={st_info:.2f}:d=0.24:alpha=1[ilay];"
+                    f"[{cur}][ilay]overlay=x=0:y='{iy_expr}':shortest=1[{nxt}]"
+                )
+                cur = nxt
+
+            # 5. Nút CTA bật trượt lên tiếp nhịp (0.34s → 0.66s)
+            if cta_btn_idx is not None:
+                nxt = f"s{step}"
+                step += 1
+                cy_expr = _ease_out_expr(0.34, 0.32, round(54 * slide_scale))
+                filter_parts.append(
+                    f"[{cta_btn_idx}:v]format=rgba,fade=t=in:st=0.34:d=0.20:alpha=1[clay];"
+                    f"[{cur}][clay]overlay=x=0:y='{cy_expr}':shortest=1[{nxt}]"
+                )
+                cur = nxt
+
+            # 6. Bong bóng icon mạng xã hội bay bồng bềnh liên tục lệch pha (chỉ cho template social-media)
+            if float_a_idx is not None:
+                nxt = f"s{step}"
+                step += 1
+                amp_a = max(6, round(13 * slide_scale))
+                filter_parts.append(
+                    f"[{float_a_idx}:v]format=rgba,fade=t=in:st=0.12:d=0.30:alpha=1[falay];"
+                    f"[{cur}][falay]overlay=x=0:y='{amp_a}*sin(t*2.4)':shortest=1[{nxt}]"
+                )
+                cur = nxt
+            if float_b_idx is not None:
+                nxt = f"s{step}"
+                step += 1
+                amp_b = max(6, round(11 * slide_scale))
+                filter_parts.append(
+                    f"[{float_b_idx}:v]format=rgba,fade=t=in:st=0.22:d=0.30:alpha=1[fblay];"
+                    f"[{cur}][fblay]overlay=x=0:y='{amp_b}*cos(t*2.0)':shortest=1[{nxt}]"
+                )
+                cur = nxt
+
+            filter_parts.append(
+                f"[{cur}]{template_filter},format=yuv420p,subtitles={_filter_path(ass)}{transition_filter}[video]"
             )
-        if asset is None:
-            visual_filter = f"scale={width}:{height},fps={fps}"
-        elif template in PRO_TEMPLATES:
-            _, accent, chrome = TEMPLATE_PALETTES[template]
-            viewport_width = round(width * 0.86)
-            viewport_height = round(height * (0.54 if height > width else 0.68))
-            viewport_y = round(height * (0.22 if height > width else 0.16))
-            viewport_x = (width - viewport_width) // 2
-            bar_height = max(34, round(height * 0.028))
-            dot = max(9, round(bar_height * 0.28))
-            visual_filter = (
-                f"scale={viewport_width}:{viewport_height}:force_original_aspect_ratio=decrease,"
-                "setsar=1[product];"
-                f"[1:v][product]overlay=(W-w)/2:{viewport_y}+({viewport_height}-h)/2,"
-                f"drawbox=x={viewport_x}:y={viewport_y}:w={viewport_width}:h={viewport_height}:"
-                f"color=0x{accent}@0.62:t=4,"
-                f"drawbox=x={viewport_x}:y={viewport_y}:w={viewport_width}:h={bar_height}:"
-                f"color=0x{chrome}:t=fill,"
-                f"drawbox=x={viewport_x + 22}:y={viewport_y + (bar_height-dot)//2}:w={dot}:h={dot}:color=0xff6b6b:t=fill,"
-                f"drawbox=x={viewport_x + 22 + dot + 12}:y={viewport_y + (bar_height-dot)//2}:w={dot}:h={dot}:color=0xffd166:t=fill,"
-                f"drawbox=x={viewport_x + 22 + (dot + 12)*2}:y={viewport_y + (bar_height-dot)//2}:w={dot}:h={dot}:color=0x4ade80:t=fill,"
-                f"fps={fps}"
+            filter_parts.append(
+                f"[{audio_input_index}:a]apad=pad_dur={scene_dur:.3f}{audio_fade}[audio]"
             )
+            video_filter = ";".join(filter_parts)
         else:
-            # Nền blur lấp đầy khung dọc, lớp trước vẫn contain nên không cắt mất sản phẩm.
-            visual_filter = (
-                f"split=2[bg][fg];"
-                f"[bg]scale={width}:{height}:force_original_aspect_ratio=increase,"
-                f"crop={width}:{height},gblur=sigma=24[back];"
-                f"[fg]scale={width}:{height}:force_original_aspect_ratio=decrease[front];"
-                f"[back][front]overlay=(W-w)/2:(H-h)/2,fps={fps}"
-            )
-        is_still = asset is not None and asset.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}
-        motion_filter = (
-            _motion_filter(item["motion"], width, height, fps, float(item["duration"]))
-            if is_still and template not in PRO_TEMPLATES
-            else ""
-        )
-        graphic_filter = ""
-        if template in PRO_TEMPLATES and asset is not None:
-            accent = TEMPLATE_PALETTES[template][1]
-            focus_x = round(width * 0.18)
-            focus_y = round(height * (0.37 if height > width else 0.31))
-            focus_w = round(width * 0.64)
-            focus_h = round(height * (0.19 if height > width else 0.30))
-            cursor_x = round(width * 0.72)
-            cursor_y = round(height * (0.50 if height > width else 0.46))
-            graphic_filter = (
-                f",drawbox=x={focus_x}:y={focus_y}:w={focus_w}:h={focus_h}:"
-                f"color=0x{accent}@0.88:t=5:enable='between(t,0.75,2.75)'"
-                f",drawbox=x={cursor_x-18}:y={cursor_y-18}:w=36:h=36:"
-                f"color=0x{accent}@0.34:t=4:enable='between(t,1.15,2.35)'"
-                f",drawbox=x={cursor_x-7}:y={cursor_y-7}:w=14:h=14:"
-                f"color=0x{accent}@0.95:t=fill:enable='between(t,1.25,2.25)'"
-            )
-        visual_chain = (
-            f"[0:v]{visual_filter}"
-            if template not in PRO_TEMPLATES or asset is None
-            else f"[0:v]{visual_filter}"
-        )
-        if icon_path is not None:
-            icon_size = max(48, round(min(width, height) * 0.10))
-            icon_x = round(width * 0.11)
-            icon_y = round(height * 0.065)
+            if asset is None:
+                command += [
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    f"color=c=0x{scene_bg}:s={width}x{height}:r={fps}:d={scene_dur}",
+                ]
+            elif is_still:
+                if not _image_has_content(asset):
+                    raise RenderError(f"asset {item['asset_id']} là ảnh trắng hoặc không đọc được")
+                real_media += 1
+                unique_media.add(str(item["asset_id"]))
+                if template not in PRO_TEMPLATES and item["motion"] != "none":
+                    command += ["-i", str(asset)]
+                else:
+                    command += ["-loop", "1", "-framerate", str(fps), "-i", str(asset)]
+            elif is_video_media:
+                real_media += 1
+                unique_media.add(str(item["asset_id"]))
+                command += ["-stream_loop", "-1", "-i", str(asset)]
+            else:
+                raise RenderError(f"asset {item['asset_id']} có loại file chưa hỗ trợ")
+            review_composite = template in PRO_TEMPLATES and asset is not None
+            if review_composite:
+                command += [
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    f"color=c=0x{scene_bg}:s={width}x{height}:r={fps}:d={scene_dur}",
+                ]
+            audio_input_index = 2 if review_composite else 1
+            command += ["-i", str(item["audio"])]
+
+            is_portrait = height > width
+            is_hd = max(width, height) >= 1600
+            border_px = 4 if is_hd else 3
+            shadow_offset = 10 if is_hd else 7
+            is_light_bg = relative_luminance(f"#{scene_bg}") > 0.42
+            shadow_color = "111827" if is_light_bg else "05070d"
+            border_color = base_accent
+
+            if asset is None and template in PRO_TEMPLATES:
+                cta_w = round(width * (0.84 if is_portrait else 0.68))
+                cta_h = round(height * (0.26 if is_portrait else 0.40))
+                cta_x = (width - cta_w) // 2
+                cta_y = (height - cta_h) // 2
+                ribbon_h = max(14, round(height * (0.012 if is_portrait else 0.018)))
+                visual_filter = (
+                    f"scale={width}:{height},"
+                    f"drawbox=x={cta_x + shadow_offset}:y={cta_y + shadow_offset}:w={cta_w}:h={cta_h}:color=0x{shadow_color}:t=fill,"
+                    f"drawbox=x={cta_x}:y={cta_y}:w={cta_w}:h={cta_h}:color=0x{base_card}:t=fill,"
+                    f"drawbox=x={cta_x}:y={cta_y}:w={cta_w}:h={ribbon_h}:color=0x{base_accent}:t=fill,"
+                    f"drawbox=x={cta_x}:y={cta_y}:w={cta_w}:h={cta_h}:color=0x{border_color}:t={border_px},"
+                    f"fps={fps}"
+                )
+                motion_filter = ""
+            elif asset is None:
+                visual_filter = f"scale={width}:{height},fps={fps}"
+                motion_filter = ""
+            elif template in PRO_TEMPLATES:
+                src_w, src_h = _media_dimensions(asset, settings)
+                zone_top = round(height * (0.25 if is_portrait else 0.19))
+                zone_bottom = round(height * (0.76 if is_portrait else 0.84))
+                bar_height = max(36, round(height * (0.028 if is_portrait else 0.042)))
+                max_media_w = round(width * (0.86 if is_portrait else 0.72)) - border_px * 2
+                max_media_h = max(120, (zone_bottom - zone_top) - bar_height - border_px * 2 - shadow_offset)
+                fit_w, fit_h = _fit_box(src_w, src_h, max_media_w, max_media_h)
+                card_w = fit_w + border_px * 2
+                card_h = bar_height + fit_h + border_px * 2
+                card_x = (width - card_w) // 2
+                card_y = zone_top + max(0, ((zone_bottom - zone_top) - card_h) // 2)
+                media_x = card_x + border_px
+                media_y = card_y + bar_height + border_px
+                dot = max(10, round(bar_height * 0.28))
+                dot_y = card_y + border_px + (bar_height - dot) // 2
+                dot_gap = dot + max(8, round(dot * 0.7))
+                chrome_fill = base_card
+                divider_color = base_accent
+                shadow_draw = (
+                    f"drawbox=x={card_x + shadow_offset}:y={card_y + shadow_offset}:w={card_w}:h={card_h}:"
+                    f"color=0x{shadow_color}@0.45:t=fill,"
+                )
+                accent_strip_w = max(80, round(card_w * 0.22))
+                accent_strip_h = max(8, round(dot * 0.75))
+                accent_strip_x = card_x + card_w - border_px - accent_strip_w - 22
+                accent_strip_y = card_y + border_px + (bar_height - accent_strip_h) // 2
+                clip_speed = "setpts=0.72*PTS," if is_video_media else ""
+                visual_filter = (
+                    f"{clip_speed}scale={fit_w}:{fit_h}:flags=lanczos,setsar=1[product];"
+                    f"[1:v]{shadow_draw}"
+                    f"drawbox=x={card_x}:y={card_y}:w={card_w}:h={card_h}:color=0x{chrome_fill}:t=fill,"
+                    f"drawbox=x={card_x + border_px}:y={card_y + border_px}:w={card_w - border_px * 2}:h={bar_height}:color=0x{chrome_fill}:t=fill,"
+                    f"drawbox=x={card_x + border_px + 20}:y={dot_y}:w={dot}:h={dot}:color=0xff5f56:t=fill,"
+                    f"drawbox=x={card_x + border_px + 20 + dot_gap}:y={dot_y}:w={dot}:h={dot}:color=0xffbd2e:t=fill,"
+                    f"drawbox=x={card_x + border_px + 20 + dot_gap * 2}:y={dot_y}:w={dot}:h={dot}:color=0x27c93f:t=fill,"
+                    f"drawbox=x={accent_strip_x}:y={accent_strip_y}:w={accent_strip_w}:h={accent_strip_h}:color=0x{base_accent}:t=fill,"
+                    f"drawbox=x={card_x}:y={media_y - 3}:w={card_w}:h=3:color=0x{divider_color}:t=fill[canvas];"
+                    f"[canvas][product]overlay={media_x}:{media_y},"
+                    f"drawbox=x={card_x}:y={card_y}:w={card_w}:h={card_h}:color=0x{border_color}:t={border_px},"
+                    f"fps={fps}"
+                )
+                motion_filter = ""
+            else:
+                visual_filter = (
+                    f"split=2[bg][fg];"
+                    f"[bg]scale={width}:{height}:force_original_aspect_ratio=increase,"
+                    f"crop={width}:{height},gblur=sigma=24[back];"
+                    f"[fg]scale={width}:{height}:force_original_aspect_ratio=decrease[front];"
+                    f"[back][front]overlay=(W-w)/2:(H-h)/2,fps={fps}"
+                )
+                motion_filter = (
+                    _motion_filter(item["motion"], width, height, fps, scene_dur)
+                    if is_still and item["motion"] != "none"
+                    else ""
+                )
             video_filter = (
-                f"{visual_chain}{motion_filter}{graphic_filter},{template_filter},format=yuv420p,"
-                f"subtitles={_filter_path(ass)}{transition_filter}[base];"
-                f"[{icon_input_index}:v]scale={icon_size}:{icon_size},format=rgba[icon];"
-                f"[base][icon]overlay={icon_x}:{icon_y}:shortest=1:"
-                f"enable='between(t,0.15,3.8)'[video];"
-                f"[{audio_input_index}:a]apad=pad_dur={item['duration']}{audio_fade}[audio]"
-            )
-        else:
-            video_filter = (
-                f"{visual_chain}{motion_filter}{graphic_filter},{template_filter},format=yuv420p,"
+                f"[0:v]{visual_filter}{motion_filter},{template_filter},format=yuv420p,"
                 f"subtitles={_filter_path(ass)}{transition_filter}[video];"
-                f"[{audio_input_index}:a]apad=pad_dur={item['duration']}{audio_fade}[audio]"
+                f"[{audio_input_index}:a]apad=pad_dur={scene_dur:.3f}{audio_fade}[audio]"
             )
         command += [
             "-filter_complex",
@@ -697,7 +1060,7 @@ def render_video(
             "-map",
             "[audio]",
             "-t",
-            f"{item['duration']:.3f}",
+            f"{scene_dur:.3f}",
             "-c:v",
             "libx264",
             "-preset",
@@ -716,32 +1079,87 @@ def render_video(
         ]
         _run(command)
         files.append(scene_path)
-    listing = output_dir / "scenes.ffconcat"
-    listing.write_text(
-        "ffconcat version 1.0\n"
-        + "".join(f"file '{str(path.resolve()).replace('\\', '/')}'\n" for path in files),
-        encoding="utf-8",
-    )
+        scene_durations.append(scene_dur)
+
     video = output_dir / "video.mp4"
-    _run(
-        [
-            settings.ffmpeg_bin,
-            "-y",
-            "-loglevel",
-            "error",
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            str(listing),
-            "-c",
-            "copy",
+    if use_xfade and len(files) > 1:
+        # Chuyển cảnh mượt giữa các cảnh bằng xfade + acrossfade thay vì cắt cứng / tối đen.
+        xfade_style = "smoothleft" if transition == "slide" else "fade"
+        stitch_cmd = [settings.ffmpeg_bin, "-y", "-loglevel", "error"]
+        for path in files:
+            stitch_cmd += ["-i", str(path)]
+        v_filters: list[str] = []
+        a_filters: list[str] = []
+        v_cur = "[0:v]"
+        a_cur = "[0:a]"
+        offset = scene_durations[0] - xfade_dur
+        for idx in range(1, len(files)):
+            v_next = f"[v{idx}]" if idx < len(files) - 1 else "[vout]"
+            a_next = f"[a{idx}]" if idx < len(files) - 1 else "[aout]"
+            v_filters.append(
+                f"{v_cur}[{idx}:v]xfade=transition={xfade_style}:duration={xfade_dur:.3f}:offset={max(0.1, offset):.3f}{v_next}"
+            )
+            a_filters.append(
+                f"{a_cur}[{idx}:a]acrossfade=d={xfade_dur:.3f}:c1=tri:c2=tri{a_next}"
+            )
+            v_cur, a_cur = v_next, a_next
+            offset += scene_durations[idx] - xfade_dur
+        stitch_cmd += [
+            "-filter_complex",
+            ";".join(v_filters + a_filters),
+            "-map",
+            "[vout]",
+            "-map",
+            "[aout]",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "fast",
+            "-crf",
+            "19",
+            "-pix_fmt",
+            "yuv420p",
+            "-r",
+            str(fps),
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
+            "-ar",
+            "48000",
             "-movflags",
             "+faststart",
+            "-threads",
+            "2",
             str(video),
         ]
-    )
+        _run(stitch_cmd)
+    else:
+        listing = output_dir / "scenes.ffconcat"
+        listing.write_text(
+            "ffconcat version 1.0\n"
+            + "".join(f"file '{str(path.resolve()).replace('\\', '/')}'\n" for path in files),
+            encoding="utf-8",
+        )
+        _run(
+            [
+                settings.ffmpeg_bin,
+                "-y",
+                "-loglevel",
+                "error",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(listing),
+                "-c",
+                "copy",
+                "-movflags",
+                "+faststart",
+                str(video),
+            ]
+        )
     probe = _probe(settings, video)
     streams = probe.get("streams", [])
     video_stream = next((item for item in streams if item.get("codec_type") == "video"), {})
@@ -767,6 +1185,11 @@ def render_video(
         "ratio": ratio,
         "resolution": f"{width}x{height}",
         "template": template,
+        "palette": {
+            "bg_color": f"#{base_bg.upper()}",
+            "accent_color": f"#{base_accent.upper()}",
+            "card_color": f"#{base_card.upper()}",
+        },
         "transition": transition,
         "fit_mode": "contain",
         "tts_provider": tts_provider,

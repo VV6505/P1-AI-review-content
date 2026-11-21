@@ -132,3 +132,9 @@ class Review(Strict):
 
 class ReviewOut(BaseModel):
     status: str
+
+
+class DesignSuggestRequest(Strict):
+    template: str = Field(default="offset-shadow", min_length=1, max_length=60)
+    crawl_job_id: UUID | None = None
+

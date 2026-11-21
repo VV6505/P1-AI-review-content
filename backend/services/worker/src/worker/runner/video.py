@@ -58,6 +58,28 @@ class VideoJobRunner:
             profile = job.get("render_profile")
             if profile and "template" not in options:
                 options["template"] = profile
+            product_rows = self.db.select("products", {"id": f"eq.{job['product_id']}"})
+            if product_rows:
+                prod = product_rows[0]
+                options.setdefault("website_url", str(prod.get("website_url") or ""))
+                if prod.get("name"):
+                    options.setdefault("product_name", str(prod["name"]))
+            if not options.get("asset_paths"):
+                crawl_rows = self.db.select(
+                    "generation_jobs",
+                    {
+                        "product_id": f"eq.{job['product_id']}",
+                        "job_type": "eq.crawl",
+                        "status": "eq.completed",
+                    },
+                )
+                if crawl_rows:
+                    crawl_assets = (crawl_rows[-1].get("result_manifest") or {}).get("assets") or []
+                    options["asset_paths"] = {
+                        str(a["asset_id"]): str(a["path"])
+                        for a in crawl_assets
+                        if isinstance(a, dict) and a.get("asset_id") and a.get("path")
+                    }
             output = Path(self.settings.video_output_dir) / job_id
             result = render_video(
                 script_rows[0]["content"], options, output, self.settings, make_tts(self.settings)

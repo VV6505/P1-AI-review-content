@@ -7,21 +7,56 @@ import { P1_OPEN_EVENT, P1_PENDING_OPEN_KEY, P1_SESSIONS_EVENT, P1_SESSION_HISTO
 
 type Json = Record<string, unknown>;
 type Stage = "intake" | "crawl" | "pkb" | "script" | "production" | "done";
-type SceneDraft = { id: string; headline: string; subtitle: string; assetId: string; motion: string };
-type VideoPreferences = { template: string; ratio: string; resolution: string; transition: string };
+type SceneDraft = { id: string; headline: string; badge: string; highlights: string[]; subtitle: string; assetId: string; motion: string };
+type DesignPalette = {
+  id: string;
+  name: string;
+  reason: string;
+  bg_color: string;
+  accent_color: string;
+  card_color: string;
+  text_color: string;
+};
+type VideoPreferences = {
+  template: string;
+  ratio: string;
+  resolution: string;
+  transition: string;
+  bgColor?: string;
+  accentColor?: string;
+  cardColor?: string;
+};
 type Session = P1Session;
 
 const STORAGE_KEY = P1_SESSION_KEY;
 const SESSION_HISTORY_KEY = P1_SESSION_HISTORY_KEY;
 const VIDEO_PREFS_KEY = "reviewlab.p1-local.video-preferences.v1";
 const INTAKE_KEY = "reviewlab.p1-local.intake.v1";
+const TEMPLATE_DEFAULT_COLORS: Record<string, { bg: string; accent: string; card: string }> = {
+  "offset-shadow": { bg: "#FAF3EC", accent: "#E44332", card: "#FFFFFF" },
+  "social-media": { bg: "#F9F7F4", accent: "#5B5CE6", card: "#FFFFFF" },
+  "short-countdown": { bg: "#FACC15", accent: "#111827", card: "#FFFFFF" },
+  "reels-aurora": { bg: "#160D35", accent: "#FF9A3D", card: "#30205F" },
+  "reels-editorial": { bg: "#EFE9DF", accent: "#E6372F", card: "#FFFFFF" },
+  "reels-neon": { bg: "#070912", accent: "#22D3EE", card: "#171B2D" },
+  "reels-comparison": { bg: "#071918", accent: "#34E0C0", card: "#123432" },
+  "review-pro": { bg: "#07110D", accent: "#8EE8BC", card: "#15231D" },
+  animation: { bg: "#180D2B", accent: "#E879F9", card: "#2C1B46" },
+  cinematic: { bg: "#111827", accent: "#8EE8BC", card: "#1F2937" },
+  vintage: { bg: "#3F2D20", accent: "#E8D5B7", card: "#2C1E14" },
+};
 const DEFAULT_VIDEO_PREFS: VideoPreferences = {
-  template: "reels-aurora",
+  template: "offset-shadow",
   ratio: "9:16",
   resolution: "1080p",
-  transition: "fade",
+  transition: "slide",
+  bgColor: "#FAF3EC",
+  accentColor: "#E44332",
+  cardColor: "#FFFFFF",
 };
 const TEMPLATE_CATALOG = [
+  { id: "offset-shadow", name: "Offset Shadow", use: "Thẻ viền đậm, bóng cứng lệch góc, tự phối màu theo web", badge: "OFFSET" },
+  { id: "social-media", name: "Social Media", use: "Minh họa pastel bóng mềm, icon mạng xã hội bay nổi", badge: "SOCIAL" },
   { id: "short-countdown", name: "Short đếm ngược", use: "Khung demo, màu mạnh, chữ bật theo lời đọc", badge: "SHORT" },
   { id: "reels-aurora", name: "Aurora Hero", use: "Hook hiện đại, sản phẩm AI/SaaS", badge: "HOOK" },
   { id: "reels-editorial", name: "Editorial Bold", use: "Thông điệp mạnh, thương hiệu và con số", badge: "BOLD" },
@@ -32,6 +67,50 @@ const TEMPLATE_CATALOG = [
   { id: "animation", name: "Animation", use: "Khung sản phẩm macOS, chữ nhấn và icon chuyển động", badge: "POP" },
   { id: "vintage", name: "Vintage", use: "Phong cách hoài cổ", badge: "RETRO" },
 ] as const;
+
+function hexLuminance(hex: string): number {
+  const clean = hex.replace(/^#/, "");
+  if (!/^[0-9a-fA-F]{6}$/.test(clean)) return 0;
+  const [r, g, b] = [0, 2, 4].map(i => {
+    const c = parseInt(clean.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrastOn(hex: string): string {
+  return hexLuminance(hex) > 0.42 ? "#111827" : "#FFFFFF";
+}
+
+function defaultBadgeForRole(role: string): string {
+  const map: Record<string, string> = {
+    hook: "MỞ ĐẦU",
+    problem: "VẤN ĐỀ",
+    demo: "THAO TÁC",
+    feature: "TÍNH NĂNG",
+    result: "HIỆU QUẢ",
+    cta: "TRẢI NGHIỆM",
+  };
+  return map[role.toLowerCase()] ?? "ĐIỂM NỔI BẬT";
+}
+
+function fallbackSceneHeadline(scene: Json, scriptContent: Json): string {
+  const role = text(scene.role).toLowerCase();
+  const conceptTitle = text(record(scriptContent.concept).title);
+  const hookText = text(record(scriptContent.hook).text);
+  const ctaText = text(record(scriptContent.cta).text);
+  const firstClaim = text(list(scene.claims)[0]?.text);
+  const narration = list(scene.narration_segments).map(segment => text(segment.text)).join(" ");
+  const raw =
+    (role === "hook" ? conceptTitle || hookText : "") ||
+    (role === "cta" ? ctaText : "") ||
+    firstClaim ||
+    text(scene.subtitle_text) ||
+    narration ||
+    "Khám phá sản phẩm";
+  const words = raw.trim().split(/\s+/u).filter(Boolean);
+  return words.slice(0, 8).join(" ").slice(0, 56);
+}
 const stages: Array<[Stage, string]> = [
   ["intake", "Cung cấp sản phẩm"],
   ["crawl", "Khám phá sản phẩm"],
@@ -165,6 +244,15 @@ export function LocalP1Flow({ onReset }: { onReset?: () => void }) {
   const [ratio, setRatio] = useState(DEFAULT_VIDEO_PREFS.ratio);
   const [resolution, setResolution] = useState(DEFAULT_VIDEO_PREFS.resolution);
   const [transition, setTransition] = useState(DEFAULT_VIDEO_PREFS.transition);
+  const [bgColor, setBgColor] = useState(DEFAULT_VIDEO_PREFS.bgColor ?? "#FAF3EC");
+  const [accentColor, setAccentColor] = useState(DEFAULT_VIDEO_PREFS.accentColor ?? "#E44332");
+  const [cardColor, setCardColor] = useState(DEFAULT_VIDEO_PREFS.cardColor ?? "#FFFFFF");
+  const [designPalettes, setDesignPalettes] = useState<DesignPalette[]>([]);
+  const [designSummary, setDesignSummary] = useState("");
+  const [detectedColors, setDetectedColors] = useState<string[]>([]);
+  const [designLoading, setDesignLoading] = useState(false);
+  const [previewSceneIndex, setPreviewSceneIndex] = useState(0);
+  const designSuggestedForRef = useRef<string>("");
   const [requestedDuration, setRequestedDuration] = useState(42);
   const [entryUrl, setEntryUrl] = useState(false);
   const [sceneDrafts, setSceneDrafts] = useState<SceneDraft[]>([]);
@@ -204,10 +292,15 @@ export function LocalP1Flow({ onReset }: { onReset?: () => void }) {
         const videoPreferences = JSON.parse(
           localStorage.getItem(VIDEO_PREFS_KEY) ?? JSON.stringify(DEFAULT_VIDEO_PREFS),
         ) as VideoPreferences;
-        setTemplate(videoPreferences.template || DEFAULT_VIDEO_PREFS.template);
+        const tpl = videoPreferences.template || DEFAULT_VIDEO_PREFS.template;
+        const tplColors = TEMPLATE_DEFAULT_COLORS[tpl] ?? TEMPLATE_DEFAULT_COLORS["offset-shadow"];
+        setTemplate(tpl);
         setRatio(videoPreferences.ratio || DEFAULT_VIDEO_PREFS.ratio);
         setResolution(videoPreferences.resolution || DEFAULT_VIDEO_PREFS.resolution);
         setTransition(videoPreferences.transition || DEFAULT_VIDEO_PREFS.transition);
+        setBgColor(videoPreferences.bgColor || tplColors.bg);
+        setAccentColor(videoPreferences.accentColor || tplColors.accent);
+        setCardColor(videoPreferences.cardColor || tplColors.card);
         if (saved.videoJobId || saved.scriptApproved) setStage("production");
         else if (saved.scriptRevision) setStage("script");
         else if (saved.pkbVersion) setStage("pkb");
@@ -217,6 +310,8 @@ export function LocalP1Flow({ onReset }: { onReset?: () => void }) {
           const target = sessions.find(item => item.productId === pendingId) ?? readP1Sessions(localStorage).find(item => item.productId === pendingId);
           localStorage.removeItem(P1_PENDING_OPEN_KEY);
           if (target) openSavedProject(target);
+        } else if (saved.productId) {
+          void resume(saved);
         }
       } catch { localStorage.removeItem(STORAGE_KEY); }
     });
@@ -274,18 +369,91 @@ export function LocalP1Flow({ onReset }: { onReset?: () => void }) {
   async function loadScript(productId: string, revision: number) {
     const value = await api<Json>(`products/${productId}/scripts/${revision}`);
     setScript(value);
-    setSceneDrafts(list(record(value.content).scenes).map((scene, index) => ({
+    const content = record(value.content);
+    setSceneDrafts(list(content.scenes).map((scene, index) => ({
       id: text(scene.scene_id, `s${String(index + 1).padStart(2, "0")}`),
-      headline: text(scene.role, "Khám phá sản phẩm").replaceAll("_", " ").toUpperCase(),
+      headline: fallbackSceneHeadline(scene, content),
+      badge: defaultBadgeForRole(text(scene.role, "feature")),
+      highlights: list(scene.claims).map(c => text(c.text).trim().slice(0, 64)).filter(Boolean).slice(0, 2),
       subtitle: text(scene.subtitle_text) || list(scene.narration_segments).map(segment => text(segment.text)).join(" "),
       assetId: text(record(scene.visual_plan).asset_id),
       motion: ["zoom_in", "pan_right", "zoom_out", "pan_left"][index % 4],
     })));
+    setPreviewSceneIndex(0);
     if (narrationWordCount(value) > 150) {
       setFeedback(current => current.trim() ? current : P1_DURATION_REVISION_FEEDBACK);
     }
     setStage("script");
   }
+
+  async function runDesignSuggest(
+    productId: string | undefined = session.productId,
+    revision: number | undefined = session.scriptRevision,
+    crawlJobId: string | undefined = session.crawlJobId,
+    targetTemplate: string = template,
+  ) {
+    if (!productId || !revision) return;
+    setDesignLoading(true);
+    try {
+      const result = await post<Json>(`products/${productId}/scripts/${revision}/design-suggest`, {
+        template: targetTemplate,
+        crawl_job_id: crawlJobId ?? null,
+      });
+      const aiScenes = list(result.scenes);
+      const byId = new Map(aiScenes.map(item => [text(item.scene_id), item]));
+      if (byId.size > 0) {
+        setSceneDrafts(current => current.map(scene => {
+          const suggested = byId.get(scene.id);
+          if (!suggested) return scene;
+          const aiHighlights = Array.isArray(suggested.highlights)
+            ? suggested.highlights.filter((h): h is string => typeof h === "string" && Boolean(h.trim())).slice(0, 2)
+            : [];
+          return {
+            ...scene,
+            headline: text(suggested.headline, scene.headline),
+            badge: text(suggested.badge, scene.badge),
+            highlights: aiHighlights.length ? aiHighlights : scene.highlights,
+          };
+        }));
+      }
+      const palettes = list(result.palettes).map(item => ({
+        id: text(item.id),
+        name: text(item.name),
+        reason: text(item.reason),
+        bg_color: text(item.bg_color, "#FAF3EC"),
+        accent_color: text(item.accent_color, "#E44332"),
+        card_color: text(item.card_color, "#FFFFFF"),
+        text_color: text(item.text_color, "#111827"),
+      })).filter(item => Boolean(item.id));
+      setDesignPalettes(palettes);
+      setDesignSummary(text(result.site_summary));
+      const detected = record(result.detected_colors);
+      const accents = Array.isArray(detected.detected_accents)
+        ? detected.detected_accents.filter((c): c is string => typeof c === "string")
+        : [];
+      setDetectedColors(accents);
+      const recId = text(result.recommended_palette_id);
+      const recommended = palettes.find(item => item.id === recId) ?? palettes[0];
+      if (recommended) {
+        applyColors(recommended.bg_color, recommended.accent_color, recommended.card_color, targetTemplate);
+      }
+      designSuggestedForRef.current = `${productId}:${revision}`;
+    } catch (cause) {
+      setError(message(cause));
+    } finally {
+      setDesignLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (stage !== "production" || session.videoJobId) return;
+    if (!session.productId || !session.scriptRevision || !sceneDrafts.length) return;
+    const key = `${session.productId}:${session.scriptRevision}`;
+    if (designSuggestedForRef.current === key || designLoading) return;
+    designSuggestedForRef.current = key;
+    void runDesignSuggest(session.productId, session.scriptRevision, session.crawlJobId, template);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, session.productId, session.scriptRevision, session.videoJobId, sceneDrafts.length]);
 
   async function runCrawl(productId: string, authSessionId?: string) {
     setStage("crawl");
@@ -543,8 +711,15 @@ export function LocalP1Flow({ onReset }: { onReset?: () => void }) {
     if (!session.productId || !session.scriptRevision) return;
     clearError(); setBusy(true);
     try {
-      await post(`products/${session.productId}/scripts/${session.scriptRevision}/review`, { decision: "submit", note: null });
-      await post(`products/${session.productId}/scripts/${session.scriptRevision}/review`, { decision: "approve", note: "Chủ sản phẩm đã duyệt concept và kịch bản trên FE local." });
+      const current = await api<Json>(`products/${session.productId}/scripts/${session.scriptRevision}`);
+      if (current.status === "draft") {
+        await post(`products/${session.productId}/scripts/${session.scriptRevision}/review`, { decision: "submit", note: null });
+        await post(`products/${session.productId}/scripts/${session.scriptRevision}/review`, { decision: "approve", note: "Chủ sản phẩm đã duyệt concept và kịch bản trên FE local." });
+      } else if (current.status === "in_review") {
+        await post(`products/${session.productId}/scripts/${session.scriptRevision}/review`, { decision: "approve", note: "Chủ sản phẩm đã duyệt concept và kịch bản trên FE local." });
+      } else if (current.status !== "approved") {
+        throw new Error(`Kịch bản đang ở trạng thái ${String(current.status)}; hãy tạo revision mới trước khi tiếp tục.`);
+      }
       save({ scriptApproved: true });
       setStage("production"); setStatus("Kịch bản đã khóa. Hãy chọn cấu hình dựng nhẹ cho máy local.");
     } catch (cause) { setError(message(cause)); }
@@ -567,10 +742,17 @@ export function LocalP1Flow({ onReset }: { onReset?: () => void }) {
           transition,
           aspect_ratio: ratio,
           resolution,
+          bg_color: bgColor,
+          accent_color: accentColor,
+          card_color: cardColor,
+          product_name: name || undefined,
+          website_url: url || undefined,
           asset_paths: assetPaths,
           scene_order: sceneDrafts.map(scene => scene.id),
           scene_overrides: Object.fromEntries(sceneDrafts.map(scene => [scene.id, {
             headline: scene.headline,
+            badge: scene.badge,
+            highlights: scene.highlights,
             subtitle: scene.subtitle,
             asset_id: scene.assetId,
             motion: scene.motion,
@@ -591,10 +773,12 @@ export function LocalP1Flow({ onReset }: { onReset?: () => void }) {
   function reset() {
     localStorage.removeItem(STORAGE_KEY);
     sessionRef.current = {};
+    designSuggestedForRef.current = "";
     window.dispatchEvent(new Event(P1_SESSIONS_EVENT));
     setSession({}); setStage("intake"); setUrl(""); setOwnerContext(""); setPreferences("");
     setAudience(""); setVideoGoal("brand");
     setManualLogin(false); setDiscoveryMode("public"); setSceneDrafts([]);
+    setDesignPalettes([]); setDesignSummary(""); setDetectedColors([]); setPreviewSceneIndex(0);
     setDescriptionSuggested(false); setCrawlJob(null); setPkb(null); setScript(null); setVideoJob(null); setStatus(""); setError("");
     onReset?.();
   }
@@ -603,13 +787,15 @@ export function LocalP1Flow({ onReset }: { onReset?: () => void }) {
     localStorage.removeItem(P1_PENDING_OPEN_KEY);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(target));
     sessionRef.current = target;
+    designSuggestedForRef.current = "";
     setSession(target);
     window.dispatchEvent(new Event(P1_SESSIONS_EVENT));
     setUrl(target.url ?? ""); setOwnerContext(target.ownerContext ?? ""); setPreferences(target.preferences ?? "");
     setAudience(target.audience ?? ""); setVideoGoal(target.videoGoal ?? "brand");
     setManualLogin(target.manualLogin ?? false);
     setDiscoveryMode(target.discoveryMode ?? (target.manualLogin ? "authenticated" : "public"));
-    setFeedback(target.revisionFeedback ?? ""); setCrawlJob(null); setPkb(null); setScript(null); setVideoJob(null);
+    setFeedback(target.revisionFeedback ?? ""); setDesignPalettes([]); setDesignSummary(""); setDetectedColors([]); setPreviewSceneIndex(0);
+    setCrawlJob(null); setPkb(null); setScript(null); setVideoJob(null);
     void resume(target);
   }
 
@@ -644,16 +830,48 @@ export function LocalP1Flow({ onReset }: { onReset?: () => void }) {
     setSceneDrafts(current => current.map(scene => scene.id === id ? { ...scene, ...patch } : scene));
   }
 
+  function applyColors(nextBg: string, nextAccent: string, nextCard: string, nextTemplate: string = template) {
+    setBgColor(nextBg);
+    setAccentColor(nextAccent);
+    setCardColor(nextCard);
+    const next: VideoPreferences = {
+      template: nextTemplate,
+      ratio,
+      resolution,
+      transition,
+      bgColor: nextBg,
+      accentColor: nextAccent,
+      cardColor: nextCard,
+    };
+    localStorage.setItem(VIDEO_PREFS_KEY, JSON.stringify(next));
+  }
+
   function changeTemplate(value: string) {
-    const isPro = value === "review-pro" || value === "short-countdown" || value.startsWith("reels-");
-    const next = { template: value, ratio: isPro ? "9:16" : ratio, resolution: isPro ? "1080p" : resolution, transition };
+    const isPro = value === "offset-shadow" || value === "social-media" || value === "review-pro" || value === "short-countdown" || value.startsWith("reels-");
+    const defaults = TEMPLATE_DEFAULT_COLORS[value] ?? TEMPLATE_DEFAULT_COLORS["offset-shadow"];
+    const nextBg = value === "social-media" ? defaults.bg : (designPalettes.length ? bgColor : defaults.bg);
+    const nextAccent = value === "social-media" ? defaults.accent : (designPalettes.length ? accentColor : defaults.accent);
+    const nextCard = (value === "offset-shadow" || value === "social-media") ? "#FFFFFF" : (designPalettes.length ? cardColor : defaults.card);
+    const next: VideoPreferences = {
+      template: value,
+      ratio: isPro ? "9:16" : ratio,
+      resolution: isPro ? "1080p" : resolution,
+      transition,
+      bgColor: nextBg,
+      accentColor: nextAccent,
+      cardColor: nextCard,
+    };
     setTemplate(next.template); setRatio(next.ratio); setResolution(next.resolution);
+    setBgColor(nextBg); setAccentColor(nextAccent); setCardColor(nextCard);
     localStorage.setItem(VIDEO_PREFS_KEY, JSON.stringify(next));
   }
 
   function changeVideoPreference(patch: Partial<VideoPreferences>) {
-    const next = { template, ratio, resolution, transition, ...patch };
+    const next: VideoPreferences = { template, ratio, resolution, transition, bgColor, accentColor, cardColor, ...patch };
     setTemplate(next.template); setRatio(next.ratio); setResolution(next.resolution); setTransition(next.transition);
+    if (next.bgColor) setBgColor(next.bgColor);
+    if (next.accentColor) setAccentColor(next.accentColor);
+    if (next.cardColor) setCardColor(next.cardColor);
     localStorage.setItem(VIDEO_PREFS_KEY, JSON.stringify(next));
   }
 
@@ -725,33 +943,207 @@ export function LocalP1Flow({ onReset }: { onReset?: () => void }) {
     </section>}
 
     {stage === "production" && !session.videoJobId && <section className="local-p1-card">
-      <div className="local-p1-card-title"><span>05</span><div><h2>Storyboard & cấu hình dựng</h2><p>Duyệt clip Browser Agent, chọn tư liệu, chuyển động, thứ tự và phụ đề trước khi tạo MP4.</p></div></div>
+      <div className="local-p1-card-title"><span>05</span><div><h2>Storyboard & cấu hình dựng</h2><p>Chọn template, màu nền theo thương hiệu web, xem trước từng cảnh và chỉnh tiêu đề trước khi dựng MP4.</p></div></div>
       <h3>Chọn template dùng lại</h3>
-      <p className="local-p1-help">Bạn đã chọn {template} · {ratio} · khoảng {requestedDuration}s lúc bắt đầu. Muốn đổi trước khi dựng video thì chọn lại bên dưới.</p>
-      <p className="local-p1-help">Lựa chọn được ghi nhớ cho những lần chạy sau. Preview bên dưới dùng chính tư liệu M1 đã thu.</p>
+      <p className="local-p1-help">Bạn đang chọn <strong>{TEMPLATE_CATALOG.find(item => item.id === template)?.name ?? template}</strong> · {ratio} · {resolution}. Preview bên dưới mô phỏng đúng bố cục 3 vùng (Badge/Tiêu đề → Khung sản phẩm ôm sát → Phụ đề) sẽ dựng ra MP4.</p>
       <div className="local-p1-template-catalog">{TEMPLATE_CATALOG.map(item => <button type="button" key={item.id} className={template === item.id ? "active" : ""} onClick={() => changeTemplate(item.id)}><i>{item.badge}</i><strong>{item.name}</strong><span>{item.use}</span></button>)}</div>
-      <div className="local-p1-config"><label>Tỷ lệ<select value={ratio} onChange={event => changeVideoPreference({ ratio: event.target.value })}><option>9:16</option><option>16:9</option></select></label><label>Chuyển cảnh<select value={transition} onChange={event => changeVideoPreference({ transition: event.target.value })}><option value="fade">Fade mềm</option><option value="none">Không hiệu ứng</option></select></label><label>Độ phân giải<select value={resolution} onChange={event => changeVideoPreference({ resolution: event.target.value })}><option>720p</option><option>1080p</option></select></label></div>
-      <div className={`local-p1-template-preview ${template} ${ratio === "9:16" ? "portrait" : "landscape"}`}>
-        {(() => {
-          const selectedAssetIndex = assets.findIndex(asset => text(asset.asset_id) === sceneDrafts[0]?.assetId);
-          const previewAssetIndex = selectedAssetIndex >= 0 ? selectedAssetIndex : 0;
-          const previewAsset = assets[previewAssetIndex];
-          return <>
-            <div className="local-p1-template-copy"><span>✦ {TEMPLATE_CATALOG.find(item => item.id === template)?.badge} · {ratio}</span><strong>{sceneDrafts[0]?.headline || name || "Sản phẩm của bạn"}</strong><small>{sceneDrafts[0]?.subtitle || description || "Tư liệu và lời giới thiệu sản phẩm."}</small></div>
-            <div className="local-p1-template-chrome"><span /><span /><span /></div>
-            {previewAsset && session.crawlJobId ? (isVideoAsset(previewAsset) ? <video className="local-p1-template-media" muted autoPlay loop playsInline preload="metadata" src={`/api/p1/jobs/${session.crawlJobId}/assets/${previewAssetIndex}`} /> : <Image className="local-p1-template-media" unoptimized fill sizes="(max-width: 900px) 100vw, 640px" src={`/api/p1/jobs/${session.crawlJobId}/assets/${previewAssetIndex}`} alt="Tư liệu sản phẩm trong template" />) : <div className="local-p1-template-empty">Chưa có tư liệu sản phẩm</div>}
-          </>;
-        })()}
+
+      <div className="local-p1-palette-panel">
+        <div className="local-p1-palette-head">
+          <div>
+            <h3>Màu nền & tiêu đề tự nhận diện theo trang web</h3>
+            <p className="local-p1-help">
+              {designLoading
+                ? "AI đang đọc trang web + màu ảnh chụp để viết lại tiêu đề từng cảnh và đề xuất màu nền phù hợp…"
+                : (designSummary || "Bấm nút bên phải để AI nhận diện trang web, sửa lại tiêu đề từng cảnh và gợi ý bảng màu phù hợp.")}
+            </p>
+            {!!detectedColors.length && <div className="local-p1-detected-colors"><span>Màu đo từ web:</span>{detectedColors.map(hex => <button key={hex} type="button" title={`Dùng ${hex} làm màu nhấn`} onClick={() => applyColors(bgColor, hex, cardColor)}><i style={{ background: hex }} /><code>{hex}</code></button>)}</div>}
+          </div>
+          <button type="button" className="secondary-button" disabled={busy || designLoading} onClick={() => void runDesignSuggest(session.productId, session.scriptRevision, session.crawlJobId, template)}>
+            {designLoading ? "Đang nhận diện…" : "AI sửa tiêu đề & gợi ý màu"}
+          </button>
+        </div>
+        {!!designPalettes.length && <div className="local-p1-palettes">
+          {designPalettes.map(item => {
+            const active = bgColor.toUpperCase() === item.bg_color.toUpperCase() && accentColor.toUpperCase() === item.accent_color.toUpperCase();
+            return <button key={item.id} type="button" className={active ? "active" : ""} onClick={() => applyColors(item.bg_color, item.accent_color, item.card_color)}>
+              <span className="local-p1-swatches"><i style={{ background: item.bg_color }} /><i style={{ background: item.accent_color }} /><i style={{ background: item.card_color }} /></span>
+              <strong>{item.name}</strong>
+              <small>{item.reason}</small>
+            </button>;
+          })}
+        </div>}
+        <div className="local-p1-color-pickers">
+          <label><span>Màu nền video</span><div><input type="color" value={bgColor} onChange={event => applyColors(event.target.value.toUpperCase(), accentColor, cardColor)} /><code>{bgColor}</code></div></label>
+          <label><span>Màu nhấn (badge / từ khóa)</span><div><input type="color" value={accentColor} onChange={event => applyColors(bgColor, event.target.value.toUpperCase(), cardColor)} /><code>{accentColor}</code></div></label>
+          <label><span>Màu khung thẻ</span><div><input type="color" value={cardColor} onChange={event => applyColors(bgColor, accentColor, event.target.value.toUpperCase())} /><code>{cardColor}</code></div></label>
+        </div>
       </div>
-      <h3>Chỉnh storyboard trước khi dựng</h3>
+
+      <div className="local-p1-config"><label>Tỷ lệ<select value={ratio} onChange={event => changeVideoPreference({ ratio: event.target.value })}><option>9:16</option><option>16:9</option></select></label><label>Chuyển cảnh<select value={transition} onChange={event => changeVideoPreference({ transition: event.target.value })}><option value="slide">Trượt mượt (Offset)</option><option value="fade">Mờ dần mượt</option><option value="none">Cắt nhanh</option></select></label><label>Độ phân giải<select value={resolution} onChange={event => changeVideoPreference({ resolution: event.target.value })}><option>720p</option><option>1080p</option></select></label></div>
+
+      {!!sceneDrafts.length && <div className="local-p1-preview-tabs">
+        <span>Xem trước cảnh:</span>
+        {sceneDrafts.map((scene, idx) => <button key={scene.id} type="button" className={previewSceneIndex === idx ? "active" : ""} onClick={() => setPreviewSceneIndex(idx)}>{scene.id}</button>)}
+      </div>}
+
+      {(() => {
+        const activeScene = sceneDrafts[previewSceneIndex] ?? sceneDrafts[0];
+        const selectedAssetIndex = activeScene?.assetId ? assets.findIndex(asset => text(asset.asset_id) === activeScene.assetId) : -1;
+        const previewAsset = selectedAssetIndex >= 0 ? assets[selectedAssetIndex] : undefined;
+        const isLightBg = hexLuminance(bgColor) > 0.42;
+        const isOffset = template === "offset-shadow";
+        const isSocial = template === "social-media";
+        const badgeBg = hexLuminance(accentColor) < 0.65 ? accentColor : (isSocial ? "#5B5CE6" : "#111827");
+        const badgeFg = contrastOn(badgeBg);
+        const textColor = contrastOn(bgColor);
+        const cardText = contrastOn(cardColor);
+        const borderColor = isOffset ? (isLightBg ? "#111827" : "#F1F5F9") : accentColor;
+        const shadowColor = isLightBg ? "#111827" : "#05070D";
+        const sampleCaption = (activeScene?.subtitle || description || "Lời giới thiệu sản phẩm.").split(/\s+/).slice(0, 6).join(" ");
+        let host = name || "reviewlab";
+        try { if (url) host = new URL(url).hostname.replace(/^www\./, ""); } catch {}
+        const stepCount = Math.max(1, sceneDrafts.length);
+        const stepNum = Math.min(stepCount, previewSceneIndex + 1);
+        const pvHighlights = activeScene?.highlights?.length ? activeScene.highlights.slice(0, 2) : [activeScene?.headline || description || "Tính năng nổi bật của sản phẩm"];
+        return <div
+          key={`${template}-${previewSceneIndex}`}
+          className={`local-p1-template-preview ${template} ${ratio === "9:16" ? "portrait" : "landscape"}`}
+          style={{
+            backgroundColor: bgColor,
+            backgroundImage: isOffset
+              ? `radial-gradient(${isLightBg ? "rgba(17,24,39,0.13)" : "rgba(255,255,255,0.14)"} 1px, transparent 1px)`
+              : isSocial
+                ? "radial-gradient(circle at 12% 38%, rgba(180,176,248,0.34), transparent 46%), radial-gradient(circle at 90% 70%, rgba(255,166,146,0.34), transparent 46%)"
+                : undefined,
+            backgroundSize: isOffset ? "12px 12px" : undefined,
+            color: textColor,
+          }}
+        >
+          {isSocial && <div className="local-p1-sm-floats" aria-hidden="true">
+            <span className="sm-fb">f</span>
+            <span className="sm-yt">▶</span>
+            <span className="sm-ig">◎</span>
+            <span className="sm-in">in</span>
+            <span className="sm-ht">♥</span>
+          </div>}
+          {(isOffset || isSocial) && <div className="local-p1-pv-segments">
+            {Array.from({ length: stepCount }, (_, i) => <i key={i} style={{ background: i < stepNum ? accentColor : (isLightBg ? "rgba(17,24,39,0.14)" : "rgba(255,255,255,0.18)") }} />)}
+          </div>}
+          {isOffset && <div className="local-p1-pv-meta">
+            <span className="local-p1-pv-brand" style={{ background: cardColor, color: cardText, border: `2px solid ${borderColor}`, boxShadow: `3px 3px 0 ${shadowColor}` }}>
+              <i style={{ background: accentColor }} />{host}
+            </span>
+            <span className="local-p1-pv-step" style={{ background: badgeBg, color: badgeFg, border: `2px solid ${borderColor}`, boxShadow: `3px 3px 0 ${shadowColor}` }}>
+              {String(stepNum).padStart(2, "0")} / {String(stepCount).padStart(2, "0")}
+            </span>
+          </div>}
+          {isSocial && <div className="local-p1-sm-header">
+            <div className="local-p1-sm-user">
+              <i style={{ background: badgeBg, color: badgeFg }}>{(name || host)[0]?.toUpperCase() || "R"}</i>
+              <div><strong style={{ color: textColor }}>@{host} <b>✓</b></strong><small>Social Review</small></div>
+            </div>
+            <span className="local-p1-sm-step">{String(stepNum).padStart(2, "0")} / {String(stepCount).padStart(2, "0")}</span>
+          </div>}
+
+          {previewAsset ? <>
+            <div
+              className={`local-p1-pv-title-card ${isSocial ? "is-social" : ""}`}
+              style={isOffset ? { background: cardColor, color: cardText, border: `2px solid ${borderColor}`, boxShadow: `5px 5px 0 ${shadowColor}`, borderLeft: `6px solid ${accentColor}` } : undefined}
+            >
+              <span
+                className="local-p1-pv-badge"
+                style={{
+                  background: badgeBg,
+                  color: badgeFg,
+                  borderRadius: isSocial ? "999px" : "4px",
+                  border: isOffset ? `2px solid ${borderColor}` : "none",
+                  boxShadow: isOffset ? `3px 3px 0 ${shadowColor}` : "none",
+                }}
+              >
+                {isSocial ? `# ${activeScene?.badge || "SOCIAL"}` : (activeScene?.badge || TEMPLATE_CATALOG.find(item => item.id === template)?.badge || "ĐIỂM NỔI BẬT")}
+              </span>
+              <strong className="local-p1-pv-headline" style={{ color: isOffset ? cardText : textColor }}>{activeScene?.headline || name || "Sản phẩm của bạn"}</strong>
+            </div>
+
+            <div className="local-p1-pv-center">
+              {session.crawlJobId && <div
+                className="local-p1-pv-card"
+                style={{
+                  background: cardColor,
+                  borderRadius: isSocial ? "12px" : "4px",
+                  border: isOffset ? `3px solid ${borderColor}` : isSocial ? "1px solid rgba(91,92,230,0.18)" : `2px solid ${borderColor}`,
+                  boxShadow: isOffset ? `7px 7px 0 ${shadowColor}` : isSocial ? "0 10px 26px rgba(91,92,230,0.16)" : "0 12px 28px rgb(0 0 0 / .28)",
+                }}
+              >
+                <div className="local-p1-pv-chrome" style={{ background: cardColor, borderBottom: isOffset ? `2px solid ${borderColor}` : "1px solid rgba(17,24,39,0.08)" }}>
+                  <div><i /><i /><i /></div>
+                  <span style={{ color: cardText }}>{host}</span>
+                  <b style={{ background: isSocial ? "rgba(180,176,248,0.35)" : badgeBg, color: isSocial ? accentColor : badgeFg }}>{isVideoAsset(previewAsset) ? "CLIP" : "WEB"}</b>
+                </div>
+                <div className="local-p1-pv-media">
+                  {isVideoAsset(previewAsset)
+                    ? <video muted autoPlay loop playsInline preload="metadata" src={`/api/p1/jobs/${session.crawlJobId}/assets/${selectedAssetIndex}`} />
+                    : <Image unoptimized width={1280} height={720} src={`/api/p1/jobs/${session.crawlJobId}/assets/${selectedAssetIndex}`} alt="Tư liệu sản phẩm trong template" />}
+                </div>
+              </div>}
+            </div>
+
+            {(isOffset || isSocial) && <div
+              className="local-p1-pv-info-card"
+              style={{
+                background: cardColor,
+                color: cardText,
+                borderRadius: isSocial ? "12px" : "7px",
+                border: isOffset ? `2px solid ${borderColor}` : "1px solid rgba(91,92,230,0.16)",
+                boxShadow: isOffset ? `5px 5px 0 ${shadowColor}` : "0 8px 20px rgba(91,92,230,0.12)",
+              }}
+            >
+              <span className="local-p1-pv-kicker" style={{ color: accentColor }}>{isSocial ? "NỔI BẬT · CHIA SẺ NGAY" : "◆ ĐIỂM NỔI BẬT"}</span>
+              <ul>{pvHighlights.map((pt, i) => <li key={i}><i style={{ background: i === 1 && isSocial ? "#EF4444" : badgeBg, color: badgeFg, borderRadius: isSocial ? "999px" : "3px" }}>✓</i><span>{pt}</span></li>)}</ul>
+            </div>}
+          </> : (
+            <div className="local-p1-pv-center">
+              <div
+                className="local-p1-pv-cta-card"
+                style={{
+                  background: cardColor,
+                  color: cardText,
+                  borderRadius: isSocial ? "16px" : "8px",
+                  border: isOffset ? `3px solid ${borderColor}` : isSocial ? "1px solid rgba(91,92,230,0.18)" : `2px solid ${borderColor}`,
+                  boxShadow: isOffset ? `7px 7px 0 ${shadowColor}` : "0 12px 28px rgba(91,92,230,0.18)",
+                }}
+              >
+                {!isSocial && <span className="local-p1-pv-cta-ribbon" style={{ background: accentColor }} />}
+                <span className="local-p1-pv-badge" style={{ background: badgeBg, color: badgeFg, borderRadius: isSocial ? "999px" : "4px", border: isOffset ? `2px solid ${borderColor}` : "none" }}>{activeScene?.badge || "TRẢI NGHIỆM"}</span>
+                <strong>{activeScene?.headline || name || "Khám phá ngay"}</strong>
+                <span className="local-p1-pv-cta-btn" style={{ background: badgeBg, color: badgeFg, borderRadius: isSocial ? "999px" : "6px", border: isOffset ? `2px solid ${borderColor}` : "none", boxShadow: isOffset ? `3px 3px 0 ${shadowColor}` : "0 6px 14px rgba(91,92,230,0.28)" }}>Khám phá {name || host} →</span>
+              </div>
+            </div>
+          )}
+
+          <div className="local-p1-pv-bottom">
+            <span
+              className="local-p1-pv-caption"
+              style={{
+                boxShadow: isOffset ? `3px 3px 0 ${isLightBg ? "#000000" : accentColor}` : "none",
+              }}
+            >
+              {sampleCaption}
+            </span>
+          </div>
+        </div>;
+      })()}
+
+      <h3>Chỉnh storyboard từng cảnh trước khi dựng</h3>
       <div className="local-p1-storyboard">{sceneDrafts.map((scene, index) => {
         const assetIndex = assets.findIndex(asset => text(asset.asset_id) === scene.assetId);
         const selectedAsset = assetIndex >= 0 ? assets[assetIndex] : undefined;
-        const preview = assetIndex >= 0 && session.crawlJobId ? (isVideoAsset(selectedAsset) ? <video controls muted playsInline preload="metadata" src={`/api/p1/jobs/${session.crawlJobId}/assets/${assetIndex}`} /> : <Image unoptimized width={1280} height={720} src={`/api/p1/jobs/${session.crawlJobId}/assets/${assetIndex}`} alt={`Xem trước ${scene.id}`} />) : <span>Chưa chọn tư liệu</span>;
-        return <article key={scene.id}><div className="local-p1-storyboard-preview">{preview}</div><div className="local-p1-storyboard-fields"><strong>{scene.id}</strong><label>Tiêu đề ngắn<input value={scene.headline} maxLength={72} onChange={event => updateScene(scene.id, { headline: event.target.value })} /></label><label>Tư liệu<select value={scene.assetId} onChange={event => updateScene(scene.id, { assetId: event.target.value })}>{assets.map(asset => <option key={text(asset.asset_id)} value={text(asset.asset_id)}>{text(asset.kind) === "screen_recording" ? "▶ Clip thao tác · " : "Ảnh · "}{text(asset.asset_id)}</option>)}</select></label><label>Chuyển động<select value={scene.motion} disabled={isVideoAsset(selectedAsset)} onChange={event => updateScene(scene.id, { motion: event.target.value })}><option value="zoom_in">Zoom vào nhẹ</option><option value="zoom_out">Zoom ra nhẹ</option><option value="pan_left">Trượt sang trái</option><option value="pan_right">Trượt sang phải</option><option value="none">Đứng yên</option></select></label><label>Phụ đề<textarea rows={3} value={scene.subtitle} onChange={event => updateScene(scene.id, { subtitle: event.target.value })} /></label><div><button type="button" className="text-button" onClick={() => moveScene(index, -1)} disabled={index === 0}>↑ Lên</button><button type="button" className="text-button" onClick={() => moveScene(index, 1)} disabled={index === sceneDrafts.length - 1}>↓ Xuống</button></div></div></article>;
+        const preview = assetIndex >= 0 && session.crawlJobId ? (isVideoAsset(selectedAsset) ? <video controls muted playsInline preload="metadata" src={`/api/p1/jobs/${session.crawlJobId}/assets/${assetIndex}`} /> : <Image unoptimized width={1280} height={720} src={`/api/p1/jobs/${session.crawlJobId}/assets/${assetIndex}`} alt={`Xem trước ${scene.id}`} />) : <span>Thẻ CTA / chữ nổi (không dùng ảnh)</span>;
+        return <article key={scene.id}><div className="local-p1-storyboard-preview">{preview}</div><div className="local-p1-storyboard-fields"><strong>{scene.id}</strong><div className="local-p1-grid"><label>Nhãn thẻ (Badge)<input value={scene.badge} maxLength={24} onChange={event => updateScene(scene.id, { badge: event.target.value })} /></label><label>Tiêu đề ngắn (đúng nội dung web)<input value={scene.headline} maxLength={72} onChange={event => updateScene(scene.id, { headline: event.target.value })} /></label></div><label>Điểm nổi bật dưới khung (tối đa 2 dòng)<textarea rows={2} value={scene.highlights.join("\n")} onChange={event => updateScene(scene.id, { highlights: event.target.value.split("\n").map(line => line.trim()).filter(Boolean).slice(0, 2) })} placeholder="Mỗi dòng 1 ý ngắn hiện trong thẻ Điểm Nổi Bật dưới khung web…" /></label><label>Tư liệu<select value={scene.assetId} onChange={event => updateScene(scene.id, { assetId: event.target.value })}><option value="">Thẻ chữ nổi (CTA / không dùng ảnh)</option>{assets.map(asset => <option key={text(asset.asset_id)} value={text(asset.asset_id)}>{text(asset.kind) === "screen_recording" ? "▶ Clip thao tác · " : "Ảnh · "}{text(asset.asset_id)}</option>)}</select></label><label>Chuyển động<select value={scene.motion} disabled={isVideoAsset(selectedAsset) || !selectedAsset} onChange={event => updateScene(scene.id, { motion: event.target.value })}><option value="zoom_in">Zoom vào nhẹ</option><option value="zoom_out">Zoom ra nhẹ</option><option value="pan_left">Trượt sang trái</option><option value="pan_right">Trượt sang phải</option><option value="none">Đứng yên</option></select></label><label>Phụ đề<textarea rows={3} value={scene.subtitle} onChange={event => updateScene(scene.id, { subtitle: event.target.value })} /></label><div><button type="button" className="text-button" onClick={() => setPreviewSceneIndex(index)}>Xem thử cảnh này</button><button type="button" className="text-button" onClick={() => moveScene(index, -1)} disabled={index === 0}>↑ Lên</button><button type="button" className="text-button" onClick={() => moveScene(index, 1)} disabled={index === sceneDrafts.length - 1}>↓ Xuống</button></div></div></article>;
       })}</div>
       <div className="local-p1-note"><strong>Browser Agent chỉ thao tác đọc-only</strong><span>Clip tự động chỉ cuộn, hover hoặc mở liên kết nội bộ an toàn; không gửi form, mua hàng, xóa dữ liệu hay thực hiện thao tác ghi.</span></div>
-      <div className="local-p1-actions"><button type="button" className="primary-button" onClick={render} disabled={busy}>Tạo MP4 và chạy QA</button></div>
+      <div className="local-p1-actions"><button type="button" className="primary-button" onClick={render} disabled={busy || designLoading}>Tạo MP4 và chạy QA</button></div>
     </section>}
 
     {stage === "production" && session.videoJobId && <section className="local-p1-card local-p1-wait"><div className="local-p1-card-title"><span>05</span><div><h2>Đang sản xuất video</h2><p>TTS → dựng từng cảnh → ghép MP4 → ffprobe → kiểm tra có tư liệu sản phẩm.</p></div></div><div className="local-p1-pipeline"><span>TTS</span><i>→</i><span>FFmpeg 2 threads</span><i>→</i><span>MP4</span><i>→</i><span>QA</span></div></section>}
@@ -759,7 +1151,7 @@ export function LocalP1Flow({ onReset }: { onReset?: () => void }) {
     {stage === "done" && videoJob && <section className="local-p1-card">
       <div className="local-p1-card-title"><span>06</span><div><h2>Kết quả dựng & QA</h2><p>Video chỉ được tải khi cả thông số kỹ thuật và tư liệu sản phẩm đều đạt.</p></div></div>
       <div className={`local-p1-qa ${qa.passed ? "pass" : "fail"}`}><strong>{qa.passed ? "QA ĐẠT — được phép tải" : "QA CHƯA ĐẠT — chặn tải"}</strong><span>H.264/AAC · {text(manifest.resolution)} · {text(manifest.ratio)} · {String(manifest.duration_s ?? "—")}s</span><span>Kỹ thuật: {qa.technical_passed ? "đạt" : "không đạt"} · Tư liệu sản phẩm: {qa.product_media_present ? "có" : "thiếu"}</span>{list(qa.warnings).map((warning, index) => <p key={index}>{String(warning)}</p>)}</div>
-      {qa.passed ? <div className="local-p1-video"><video controls playsInline preload="metadata" src={`/api/p1/jobs/${session.videoJobId}/video`} /><a className="primary-button" href={`/api/p1/jobs/${session.videoJobId}/video`} download={`reviewlab-p1-${session.videoJobId}.mp4`}>Tải video MP4</a></div> : <><div className="local-p1-note"><strong>Cần sửa trước khi phát hành</strong><span>Kiểm tra lại asset mà kịch bản tham chiếu hoặc bổ sung tư liệu có quyền sử dụng, sau đó tạo revision/video job mới.</span></div><div className="local-p1-actions"><button type="button" className="secondary-button" onClick={retryProduction}>Dựng lại cấu hình khác</button><button type="button" className="primary-button" onClick={() => void returnToScript()}>Tạo revision kịch bản mới</button></div></>}
+      {qa.passed ? <div className="local-p1-video"><video controls playsInline preload="metadata" src={`/api/p1/jobs/${session.videoJobId}/video`} /><div className="local-p1-actions"><a className="primary-button" href={`/api/p1/jobs/${session.videoJobId}/video`} download={`reviewlab-p1-${session.videoJobId}.mp4`}>Tải video MP4</a><button type="button" className="secondary-button" onClick={retryProduction}>Đổi template / màu & dựng lại</button><button type="button" className="secondary-button" onClick={() => void returnToScript()}>Sửa kịch bản (revision mới)</button></div></div> : <><div className="local-p1-note"><strong>Cần sửa trước khi phát hành</strong><span>Kiểm tra lại asset mà kịch bản tham chiếu hoặc bổ sung tư liệu có quyền sử dụng, sau đó tạo revision/video job mới.</span></div><div className="local-p1-actions"><button type="button" className="secondary-button" onClick={retryProduction}>Dựng lại cấu hình khác</button><button type="button" className="primary-button" onClick={() => void returnToScript()}>Tạo revision kịch bản mới</button></div></>}
       <details className="local-p1-sources"><summary>Truy vết đầu ra</summary><code>Product {session.productId}</code><code>PKB v{session.pkbVersion}</code><code>Script revision {session.scriptRevision}</code><code>Video job {session.videoJobId}</code><code>Render {String(manifest.render_seconds ?? "—")}s</code></details>
       <div className="local-p1-actions"><button type="button" className="secondary-button" onClick={restartDiscovery} disabled={busy}>Thu lại tư liệu sản phẩm</button></div>
     </section>}

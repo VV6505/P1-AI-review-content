@@ -1,5 +1,5 @@
 const allowed = [
-  /^products(?:\/[0-9a-f-]+)?(?:\/(?:crawl|discovery\/preflight|login\/(?:browser|finish)|pkb\/\d+(?:\/(?:review|revise))?|scripts(?:\/generate|\/\d+(?:\/review)?)?|videos))?$/i,
+  /^products(?:\/[0-9a-f-]+)?(?:\/(?:crawl|discovery\/preflight|login\/(?:browser|finish)|pkb\/\d+(?:\/(?:review|revise))?|scripts(?:\/generate|\/\d+(?:\/(?:review|design-suggest))?)?|videos))?$/i,
   /^jobs\/[0-9a-f-]+(?:\/(?:video|assets\/\d+))?$/i,
 ];
 

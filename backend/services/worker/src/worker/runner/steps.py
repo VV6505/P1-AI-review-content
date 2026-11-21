@@ -177,6 +177,23 @@ class HomepageCaptureStep:
                 await page.wait_for_timeout(2_000)
                 if await page.locator("input[type=password]:visible").count() > 0:
                     raise RuntimeError("phiên đăng nhập chưa hợp lệ hoặc đã hết hạn")
+                # Đóng popup cookie thông thường (nếu có) để ảnh sản phẩm sạch hơn.
+                for cookie_sel in (
+                    "button:has-text('Accept All')",
+                    "button:has-text('Accept all')",
+                    "button:has-text('Reject Non-Essential')",
+                    "button:has-text('Reject all')",
+                    "button:has-text('Chấp nhận')",
+                    "button[aria-label='Close']",
+                ):
+                    try:
+                        btn = page.locator(cookie_sel).first
+                        if await btn.is_visible(timeout=500):
+                            await btn.click(timeout=1_500)
+                            await page.wait_for_timeout(400)
+                            break
+                    except Exception:
+                        continue
                 body_text = (await page.locator("body").inner_text()).strip()
                 if len(body_text) < 20:
                     raise RuntimeError("trang không hiển thị đủ nội dung để làm tư liệu")

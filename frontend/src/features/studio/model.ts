@@ -5,6 +5,8 @@ export const p1AspectRatios = ["16:9", "9:16"] as const;
 export const p1Durations = [40, 42, 45] as const;
 export const videoModels = [{ id: "veo", name: "Veo" }, { id: "kling", name: "Kling" }, { id: "sora", name: "Sora" }] as const;
 export const videoTemplates = [
+  { id: "offset-shadow", vi: "Offset Shadow", en: "Offset Shadow", descriptionVi: "Thẻ viền đậm, bóng cứng lệch góc, phối màu theo web.", descriptionEn: "Neo-brutalist bold border with offset shadow and brand palette." },
+  { id: "social-media", vi: "Social Media", en: "Social Media", descriptionVi: "Minh họa pastel hiện đại, bóng mềm và icon mạng xã hội bay nổi.", descriptionEn: "Playful flat-vector pastel cards with floating social media icons." },
   { id: "short-countdown", vi: "Short đếm ngược", en: "Countdown short", descriptionVi: "Demo sản phẩm, chữ bật theo lời đọc.", descriptionEn: "Product demo with animated captions." },
   { id: "animation", vi: "Hoạt hình đồ họa", en: "Motion graphics", descriptionVi: "Đồ họa chuyển động, minh họa thông tin rõ ràng.", descriptionEn: "Animated graphics that explain information clearly." },
   { id: "cinematic", vi: "Điện ảnh tối giản", en: "Minimal cinematic", descriptionVi: "Hình ảnh tập trung vào sản phẩm, nhịp kể tinh gọn.", descriptionEn: "Product-focused visuals with restrained pacing." },
@@ -24,7 +26,7 @@ export type Draft = {
   references: ReferenceFile[];
   productReview: ProductReview | null;
   count: number; ratio: typeof aspectRatios[number]; resolution: "720p" | "1080p";
-  style: "short-countdown" | "cinematic" | "animation" | "vintage" | "realistic" | "minimal";
+  style: "offset-shadow" | "social-media" | "short-countdown" | "cinematic" | "animation" | "vintage" | "realistic" | "minimal";
   duration: number; outputLanguage: Language; camera: "auto" | "static" | "pan";
   negativePrompt: string;
 };
@@ -66,7 +68,7 @@ export function validDraft(value: Draft): boolean {
     (value.productReview === null || validProductReview(value.productReview)) &&
     (value.requirementsReview === null || !!value.requirementsReview && value.requirementsReview.version === 1 && typeof value.requirementsReview.snapshot === "string" && typeof value.requirementsReview.confirmedAt === "string" && Number.isFinite(Date.parse(value.requirementsReview.confirmedAt))) &&
     videoModels.some(model => model.id === value.model) && Number.isSafeInteger(value.count) && value.count > 0 && aspectRatios.includes(value.ratio) && ["720p", "1080p"].includes(value.resolution) &&
-    ["short-countdown", "cinematic", "animation", "vintage", "realistic", "minimal"].includes(value.style) && [5, 10, 15, 30, 40, 42, 45, 60].includes(value.duration) &&
+    ["offset-shadow", "social-media", "short-countdown", "cinematic", "animation", "vintage", "realistic", "minimal"].includes(value.style) && [5, 10, 15, 30, 40, 42, 45, 60].includes(value.duration) &&
     ["vi", "en"].includes(value.outputLanguage) && ["auto", "static", "pan"].includes(value.camera);
 }
 function validProductReview(value: ProductReview): boolean {

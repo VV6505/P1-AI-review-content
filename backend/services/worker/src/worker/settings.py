@@ -83,6 +83,7 @@ class Settings(BaseModel):
     ffprobe_bin: str = "ffprobe"
     tts_provider: str = "edge"
     tts_voice: str = "vi-VN-HoaiMyNeural"
+    tts_rate: str = "+15%"
     gemini_tts_model: str = "gemini-2.5-flash-preview-tts"
 
     @classmethod
@@ -116,6 +117,7 @@ class Settings(BaseModel):
             ffprobe_bin=env.get("FFPROBE_BIN", "").strip() or "ffprobe",
             tts_provider=env.get("TTS_PROVIDER", "edge").strip().lower() or "edge",
             tts_voice=env.get("TTS_VOICE", "vi-VN-HoaiMyNeural").strip() or "vi-VN-HoaiMyNeural",
+            tts_rate=env.get("TTS_RATE", "+15%").strip() or "+15%",
             gemini_tts_model=env.get("GEMINI_TTS_MODEL", "gemini-2.5-flash-preview-tts").strip()
             or "gemini-2.5-flash-preview-tts",
         )

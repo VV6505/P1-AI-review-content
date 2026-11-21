@@ -93,7 +93,8 @@ class EdgeTts:
         output_dir.mkdir(parents=True, exist_ok=True)
         wav = output_dir / f"{scene_id}.wav"
         meta = output_dir / f"{scene_id}.json"
-        key = hashlib.sha256(f"edge\n{self.settings.tts_voice}\n{text}".encode()).hexdigest()
+        rate = self.settings.tts_rate or "+15%"
+        key = hashlib.sha256(f"edge\n{self.settings.tts_voice}\n{rate}\n{text}".encode()).hexdigest()
         try:
             saved = json.loads(meta.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -120,6 +121,7 @@ class EdgeTts:
                                 "edge_tts",
                                 "--voice",
                                 self.settings.tts_voice,
+                                f"--rate={rate}",
                                 "--text",
                                 chunk,
                                 "--write-media",
